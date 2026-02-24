@@ -440,8 +440,8 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 
 | 메뉴 | 경로 | 설명 |
 |------|------|------|
-| FAQ | `/system-admin/support/faq` | 자주 묻는 질문 관리 |
-| 지원티켓 | `/system-admin/support/tickets` | 사용자 문의 및 지원 요청 관리 |
+| FAQ 탭 | `/system-admin/support?tab=faq` | 자주 묻는 질문 조회 |
+| 지원티켓 탭 | `/system-admin/support?tab=tickets` | 사용자 문의 및 지원 요청 관리 |
 
 ### 보안 설정
 

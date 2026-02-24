@@ -83,12 +83,15 @@ export async function POST(request: NextRequest) {
     await connectDB();
 
     const siteId = await resolveSiteId(request);
+    if (!siteId) {
+      throw VALIDATION_ERROR("현장 배정이 필요합니다. 현장 선택 후 다시 시도해 주세요.");
+    }
     const body = (await request.json()) as Record<string, unknown>;
 
     const category = String(body.category ?? "").trim();
     const title = String(body.title ?? "").trim();
     const content = String(body.content ?? "").trim();
-    const reporterName = String(body.reporterName ?? requester.userName ?? "").trim();
+    const reporterName = String(requester.userName ?? "").trim() || "사용자";
     const reporterEmail = String(body.reporterEmail ?? "").trim();
     const priority = String(body.priority ?? "medium").trim();
 
@@ -113,7 +116,7 @@ export async function POST(request: NextRequest) {
     const ticketNo = await generateTicketNo();
 
     const created = await SupportTicket.create({
-      siteId: siteId ? new mongoose.Types.ObjectId(siteId) : undefined,
+      siteId: new mongoose.Types.ObjectId(siteId),
       ticketNo,
       category,
       priority,

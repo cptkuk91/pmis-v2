@@ -43,8 +43,8 @@ export function SideBar() {
             </Link>
           </li>
           <li>
-            <Link href="/system-admin/support/faq" className="hover:text-foreground">
-              Online Support
+            <Link href="/system-admin/support" className="hover:text-foreground">
+              Support
             </Link>
           </li>
         </ul>

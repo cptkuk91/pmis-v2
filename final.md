@@ -327,13 +327,13 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
 
 #### 2팀 — WIS/DIS + Support
 
-> 현재상태: ✅ Phase 5 2팀 핵심 완료 (WIS 동기화/재시도 + DIS 연계 화면 + Online Support FAQ/티켓 + 모바일 반응형 보정)
+> 현재상태: ✅ Phase 5 2팀 핵심 완료 (WIS 동기화/재시도 + DIS 연계 화면 + Support FAQ/티켓 + 모바일 반응형 보정)
 
 | 작업 | 상세 | 산출물 |
 |------|------|--------|
 | ✅ WIS 연동 | 출역현황, 안전교육현황 데이터 | WIS 데이터 표시, 동기화 배치 |
 | ✅ DIS 연동 | 설계도면 검색/열람 바로가기 | DIS 연계 화면 |
-| ✅ Online Support | FAQ + 문의/문제신고 | `/system-admin/support/faq`, `tickets` |
+| ✅ Support | FAQ + 문의/문제신고 (단일화) | `/system-admin/support?tab=faq|tickets` |
 | ✅ 배치 동기화 | 연계 실패 재시도 + 로그 | `integration_sync_logs` 기록 + 운영 알림 |
 | ✅ 모바일 최적화 | 반응형 레이아웃 정밀 조정 | 모바일 터치 UX |
 
@@ -591,7 +591,7 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
 | 문서함 | 접수함 / 발송함 바로가기 | 미결 건수 배지 표시 |
 | 통합 검색 | 검색 입력 필드 | 문서/도면/ISSUE 전체 검색 |
 | 오늘의 날씨 | 기온, 날씨 아이콘 | Open-Meteo 연동 |
-| 외부 링크 | WIS / DIS / Online Support | 새 탭 열기 |
+| 외부 링크 | WIS / DIS / Support | 새 탭 열기 |
 
 #### Right Widget Panel (대시보드 전용)
 
@@ -828,4 +828,4 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
 | Open-Meteo | 1팀 | 현장별 좌표 기반 기상 예보 (무료/오픈소스) | 날씨 위젯 + 기상특보 알림 |
 | WIS | 2팀 | 근로자 출역/안전교육 | 출역현황 + 안전교육 데이터 |
 | DIS | 2팀 | 설계도면/자료 관리 | 도면 검색/열람 바로가기 |
-| Online Support | 2팀 | FAQ/문제신고 | FAQ + 문의 티켓 |
+| Support | 2팀 | FAQ/문제신고 | FAQ + 문의 티켓 |

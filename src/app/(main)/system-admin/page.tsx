@@ -15,8 +15,7 @@ const menuItems = [
   { href: "/system-admin/integrations/dis", label: "DIS 연동" },
   { href: "/system-admin/sites", label: "현장 등록/관리" },
   { href: "/system-admin/site-memberships", label: "사용자-현장 매핑" },
-  { href: "/system-admin/support/faq", label: "Online Support FAQ" },
-  { href: "/system-admin/support/tickets", label: "문의/문제신고" },
+  { href: "/system-admin/support", label: "Support" },
 ];
 
 export default function SystemAdminPage() {
@@ -25,7 +24,7 @@ export default function SystemAdminPage() {
       <header>
         <h1 className="text-xl font-semibold text-foreground">시스템 관리</h1>
         <p className="mt-1 text-sm text-foreground-muted">
-          공통 게시판/회의/외부링크/코드관리 + WIS/DIS/Online Support
+          공통 게시판/회의/외부링크/코드관리 + WIS/DIS/Support
         </p>
       </header>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">

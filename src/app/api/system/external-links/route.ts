@@ -60,7 +60,7 @@ const defaultExternalLinks = {
     {
       _id: "default-general-3",
       category: "general",
-      name: "Online Support",
+      name: "Support",
       url: "https://support.example.com",
       description: "FAQ/문의 운영 지원 시스템",
     },

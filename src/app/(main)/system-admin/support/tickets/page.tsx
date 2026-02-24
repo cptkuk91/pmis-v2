@@ -67,7 +67,6 @@ export default function SupportTicketsPage() {
     priority: "medium",
     title: "",
     content: "",
-    reporterName: "",
     reporterEmail: "",
   });
 
@@ -105,12 +104,6 @@ export default function SupportTicketsPage() {
     void loadTickets(1);
   }, [loadTickets]);
 
-  useEffect(() => {
-    if (!form.reporterName && user.userName) {
-      setForm((prev) => ({ ...prev, reporterName: user.userName ?? "" }));
-    }
-  }, [form.reporterName, user.userName]);
-
   async function handleCreateTicket() {
     setIsSubmitting(true);
     setMessage(null);
@@ -130,7 +123,6 @@ export default function SupportTicketsPage() {
         priority: "medium",
         title: "",
         content: "",
-        reporterName: user.userName ?? "",
         reporterEmail: "",
       });
       setShowForm(false);
@@ -185,7 +177,7 @@ export default function SupportTicketsPage() {
         <div>
           <h1 className="text-xl font-semibold text-foreground">문의/문제신고</h1>
           <p className="mt-1 text-sm text-foreground-muted">
-            Online Support 티켓을 등록하고 처리 상태를 관리합니다.
+            Support 티켓을 등록하고 처리 상태를 관리합니다.
           </p>
         </div>
         <button
@@ -263,11 +255,9 @@ export default function SupportTicketsPage() {
             <label className="space-y-1">
               <span className="block text-sm font-medium text-foreground">작성자</span>
               <input
-                value={form.reporterName}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, reporterName: event.target.value }))
-                }
-                className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
+                value={user.userName ?? ""}
+                disabled
+                className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground-muted"
               />
             </label>
             <label className="space-y-1">

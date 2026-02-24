@@ -42,13 +42,13 @@ export default function SupportFaqPage() {
     <section className="space-y-4 rounded-xl border border-border bg-background-card p-4 shadow-[var(--shadow-soft)] sm:p-6">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Online Support FAQ</h1>
+          <h1 className="text-xl font-semibold text-foreground">Support FAQ</h1>
           <p className="mt-1 text-sm text-foreground-muted">
             자주 묻는 질문과 해결 가이드를 확인합니다.
           </p>
         </div>
         <Link
-          href="/system-admin/support/tickets"
+          href="/system-admin/support?tab=tickets"
           className="rounded-md border border-border bg-background-soft px-3 py-2 text-sm font-medium text-foreground hover:bg-background"
         >
           문의/문제신고 작성
