@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Badge, DataTable, Pagination } from "@/components/ui";
+import { Badge, DataTable, Modal, Pagination } from "@/components/ui";
 import { hasMinRole, useCurrentUser } from "@/hooks/use-current-user";
 
 type SupportTicketRow = {
@@ -26,11 +26,28 @@ type TicketsResponse = {
   error?: string;
 };
 
+type ToastState = {
+  tone: "success" | "error";
+  message: string;
+} | null;
+
+type PendingResolvedChange = {
+  ticketId: string;
+  nextStatus: SupportTicketRow["status"];
+} | null;
+
 const categoryLabel: Record<SupportTicketRow["category"], string> = {
   bug: "버그",
   feature: "개선요청",
   inquiry: "문의",
   complaint: "불편신고",
+};
+
+const statusLabel: Record<SupportTicketRow["status"], string> = {
+  open: "Open",
+  in_progress: "In Progress",
+  resolved: "Resolved",
+  closed: "Closed",
 };
 
 function PriorityBadge({ priority }: { priority: SupportTicketRow["priority"] }) {
@@ -60,14 +77,16 @@ export default function SupportTicketsPage() {
   const [showForm, setShowForm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [isUpdatingTicketId, setIsUpdatingTicketId] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState>(null);
+  const [pendingResolvedChange, setPendingResolvedChange] = useState<PendingResolvedChange>(null);
+  const [resolvedMemo, setResolvedMemo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     category: "inquiry",
     priority: "medium",
     title: "",
     content: "",
-    reporterEmail: "",
   });
 
   const loadTickets = useCallback(
@@ -100,19 +119,41 @@ export default function SupportTicketsPage() {
     [searchKeyword, statusFilter],
   );
 
+  const showToast = useCallback((nextMessage: string, tone: "success" | "error" = "success") => {
+    setToast({ tone, message: nextMessage });
+  }, []);
+
   useEffect(() => {
     void loadTickets(1);
   }, [loadTickets]);
 
+  useEffect(() => {
+    if (!toast) {
+      return;
+    }
+    const timer = window.setTimeout(() => setToast(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
   async function handleCreateTicket() {
+    const reporterEmail = user.email?.trim() ?? "";
+    if (!reporterEmail) {
+      const nextError = "로그인 사용자 이메일을 확인할 수 없습니다. 다시 로그인해 주세요.";
+      setError(nextError);
+      showToast(nextError, "error");
+      return;
+    }
+
     setIsSubmitting(true);
-    setMessage(null);
     setError(null);
     try {
       const response = await fetch("/api/system/support/tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          reporterEmail,
+        }),
       });
       const result = (await response.json()) as { ok: boolean; error?: string };
       if (!result.ok) {
@@ -123,13 +164,14 @@ export default function SupportTicketsPage() {
         priority: "medium",
         title: "",
         content: "",
-        reporterEmail: "",
       });
       setShowForm(false);
-      setMessage("문의 티켓이 등록되었습니다.");
+      showToast("문의 티켓이 등록되었습니다.", "success");
       await loadTickets(1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "티켓 등록 실패");
+      const nextError = err instanceof Error ? err.message : "티켓 등록 실패";
+      setError(nextError);
+      showToast(nextError, "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -138,25 +180,33 @@ export default function SupportTicketsPage() {
   async function updateTicketStatus(
     ticket: SupportTicketRow,
     nextStatus: SupportTicketRow["status"],
+    resolutionOverride?: string,
   ) {
     if (!canManage) {
       return;
     }
-
-    let resolution = ticket.resolution ?? "";
-    if (nextStatus === "resolved" && !resolution) {
-      resolution = prompt("해결 내용을 입력하세요.", "조치 완료") ?? "";
+    if (ticket.status === nextStatus) {
+      return;
     }
 
-    setMessage(null);
+    if (
+      nextStatus === "resolved" &&
+      !(resolutionOverride?.trim() || ticket.resolution?.trim())
+    ) {
+      setResolvedMemo("");
+      setPendingResolvedChange({ ticketId: ticket._id, nextStatus });
+      return;
+    }
+
     setError(null);
+    setIsUpdatingTicketId(ticket._id);
     try {
       const response = await fetch(`/api/system/support/tickets/${ticket._id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           status: nextStatus,
-          resolution,
+          resolution: resolutionOverride ?? ticket.resolution ?? "",
           assigneeName: user.userName ?? "담당자",
         }),
       });
@@ -164,15 +214,59 @@ export default function SupportTicketsPage() {
       if (!result.ok) {
         throw new Error(result.error ?? "상태 변경 실패");
       }
-      setMessage(`티켓 상태가 ${nextStatus}로 변경되었습니다.`);
+      showToast(`티켓 상태가 ${statusLabel[nextStatus]}로 변경되었습니다.`, "success");
       await loadTickets(page);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "상태 변경 실패");
+      const nextError = err instanceof Error ? err.message : "상태 변경 실패";
+      setError(nextError);
+      showToast(nextError, "error");
+    } finally {
+      setIsUpdatingTicketId(null);
     }
   }
 
+  async function handleConfirmResolvedModal() {
+    if (!pendingResolvedChange) {
+      return;
+    }
+
+    const targetTicket = items.find((item) => item._id === pendingResolvedChange.ticketId);
+    if (!targetTicket) {
+      setPendingResolvedChange(null);
+      showToast("대상 티켓을 찾을 수 없습니다. 목록을 새로고침하세요.", "error");
+      return;
+    }
+
+    const resolutionText = resolvedMemo.trim();
+    if (!resolutionText) {
+      showToast("해결 내용을 입력해 주세요.", "error");
+      return;
+    }
+
+    await updateTicketStatus(targetTicket, pendingResolvedChange.nextStatus, resolutionText);
+    setPendingResolvedChange(null);
+    setResolvedMemo("");
+  }
+
   return (
-    <section className="space-y-4 rounded-xl border border-border bg-background-card p-4 shadow-[var(--shadow-soft)] sm:p-6">
+    <>
+      {toast ? (
+        <div className="pointer-events-none fixed right-4 top-4 z-50 sm:right-6 sm:top-6">
+          <div
+            className={`min-w-[15rem] rounded-md border px-3 py-2 text-sm shadow-[var(--shadow-soft)] ${
+              toast.tone === "success"
+                ? "border-success/30 bg-success/10 text-foreground"
+                : "border-danger/30 bg-danger/10 text-foreground"
+            }`}
+            role="status"
+            aria-live="polite"
+          >
+            {toast.message}
+          </div>
+        </div>
+      ) : null}
+
+      <section className="space-y-4 rounded-xl border border-border bg-background-card p-4 shadow-[var(--shadow-soft)] sm:p-6">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">문의/문제신고</h1>
@@ -180,13 +274,15 @@ export default function SupportTicketsPage() {
             Support 티켓을 등록하고 처리 상태를 관리합니다.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowForm((prev) => !prev)}
-          className="rounded-md border border-border bg-background-soft px-3 py-2 text-sm text-foreground hover:bg-background"
-        >
-          {showForm ? "등록 취소" : "신규 티켓 등록"}
-        </button>
+        {!showForm ? (
+          <button
+            type="button"
+            onClick={() => setShowForm(true)}
+            className="rounded-md border border-border bg-background-soft px-3 py-2 text-sm text-foreground hover:bg-background"
+          >
+            신규 티켓 등록
+          </button>
+        ) : null}
       </header>
 
       <div className="flex flex-col gap-2 sm:flex-row">
@@ -263,11 +359,9 @@ export default function SupportTicketsPage() {
             <label className="space-y-1">
               <span className="block text-sm font-medium text-foreground">이메일</span>
               <input
-                value={form.reporterEmail}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, reporterEmail: event.target.value }))
-                }
-                className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
+                value={user.email ?? ""}
+                disabled
+                className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground-muted"
               />
             </label>
           </div>
@@ -288,82 +382,88 @@ export default function SupportTicketsPage() {
               className="w-full rounded-md border border-border bg-background-card px-3 py-2 text-sm text-foreground"
             />
           </label>
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              className="rounded-md border border-border bg-background-soft px-3 py-2 text-sm text-foreground hover:bg-background"
+            >
+              취소
+            </button>
             <button
               type="button"
               disabled={isSubmitting}
               onClick={() => void handleCreateTicket()}
               className="rounded-md border border-border bg-background-card px-3 py-2 text-sm text-foreground hover:bg-background disabled:opacity-60"
             >
-              등록
+              저장
             </button>
           </div>
         </div>
       ) : null}
 
-      {message ? <p className="text-sm text-success">{message}</p> : null}
       {error ? <p className="text-sm text-danger">{error}</p> : null}
 
       <DataTable<SupportTicketRow>
         columns={[
-          { key: "ticketNo", header: "티켓번호", className: "w-36" },
+          { key: "ticketNo", header: "티켓번호", className: "w-28 whitespace-nowrap" },
           {
             key: "category",
             header: "분류",
-            className: "w-24",
+            className: "w-20 whitespace-nowrap hidden md:table-cell",
             render: (value) => categoryLabel[value as SupportTicketRow["category"]] ?? String(value),
           },
-          { key: "title", header: "제목" },
+          {
+            key: "title",
+            header: "제목",
+            className: "max-w-[28rem]",
+            render: (value) => (
+              <span className="block truncate" title={String(value ?? "")}>
+                {String(value ?? "")}
+              </span>
+            ),
+          },
           {
             key: "priority",
             header: "우선순위",
-            className: "w-24",
+            className: "w-20 whitespace-nowrap hidden xl:table-cell",
             render: (value) => <PriorityBadge priority={value as SupportTicketRow["priority"]} />,
           },
           {
             key: "status",
             header: "상태",
-            className: "w-28",
+            className: "w-24 whitespace-nowrap",
             render: (value) => <TicketStatusBadge status={value as SupportTicketRow["status"]} />,
           },
-          { key: "reporterName", header: "작성자", className: "w-24" },
+          { key: "reporterName", header: "작성자", className: "w-24 hidden lg:table-cell" },
           {
             key: "createdAt",
             header: "등록일",
-            className: "w-28",
+            className: "w-24 whitespace-nowrap hidden xl:table-cell",
             render: (value) => new Date(String(value)).toLocaleDateString("ko-KR"),
           },
           {
             key: "_id",
             header: "처리",
-            className: "w-56",
+            className: "w-40 whitespace-nowrap",
             render: (_value, row) =>
               canManage ? (
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => void updateTicketStatus(row, "in_progress")}
-                    className="rounded border border-border px-2 py-1 text-xs text-foreground hover:bg-background-soft"
-                  >
-                    진행중
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void updateTicketStatus(row, "resolved")}
-                    className="rounded border border-border px-2 py-1 text-xs text-foreground hover:bg-background-soft"
-                  >
-                    해결
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void updateTicketStatus(row, "closed")}
-                    className="rounded border border-border px-2 py-1 text-xs text-foreground hover:bg-background-soft"
-                  >
-                    종결
-                  </button>
-                </div>
+                <select
+                  value={row.status}
+                  disabled={isUpdatingTicketId === row._id}
+                  onChange={(event) => {
+                    const nextStatus = event.target.value as SupportTicketRow["status"];
+                    void updateTicketStatus(row, nextStatus);
+                  }}
+                  className="h-8 min-w-[9rem] rounded-md border border-border bg-background-card px-2 text-xs text-foreground disabled:opacity-60"
+                >
+                  <option value="open">Open</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="closed">Closed</option>
+                </select>
               ) : (
-                "-"
+                <span className="text-xs text-foreground-muted">권한없음</span>
               ),
           },
         ]}
@@ -373,6 +473,49 @@ export default function SupportTicketsPage() {
       />
 
       <Pagination page={page} totalPages={totalPages} onPageChange={(nextPage) => void loadTickets(nextPage)} />
-    </section>
+      </section>
+
+      <Modal
+        open={pendingResolvedChange !== null}
+        title="해결 내용 입력"
+        onClose={() => {
+          setPendingResolvedChange(null);
+          setResolvedMemo("");
+        }}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-foreground-muted">
+            `Resolved` 상태로 변경하려면 해결 내용을 입력해 주세요.
+          </p>
+          <textarea
+            rows={4}
+            value={resolvedMemo}
+            onChange={(event) => setResolvedMemo(event.target.value)}
+            placeholder="예: 서버 재기동 및 설정 수정 완료"
+            className="w-full rounded-md border border-border bg-background-card px-3 py-2 text-sm text-foreground"
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className="rounded-md border border-border bg-background-soft px-3 py-2 text-sm text-foreground hover:bg-background"
+              onClick={() => {
+                setPendingResolvedChange(null);
+                setResolvedMemo("");
+              }}
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              className="rounded-md border border-border bg-background-card px-3 py-2 text-sm text-foreground hover:bg-background disabled:opacity-60"
+              onClick={() => void handleConfirmResolvedModal()}
+              disabled={resolvedMemo.trim().length === 0}
+            >
+              상태 변경
+            </button>
+          </div>
+        </div>
+      </Modal>
+  </>
   );
 }

@@ -8,6 +8,7 @@ export async function GET() {
       isAuthenticated: false,
       userId: null,
       userName: null,
+      email: null,
       role: "viewer",
       siteIds: [],
     });
@@ -17,6 +18,7 @@ export async function GET() {
     isAuthenticated: currentUser.isAuthenticated,
     userId: currentUser.userId,
     userName: currentUser.userName,
+    email: currentUser.email,
     role: currentUser.role,
     siteIds: currentUser.siteIds,
   });

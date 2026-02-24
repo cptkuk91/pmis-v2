@@ -13,6 +13,7 @@ type CurrentUser = {
   isAuthenticated: boolean;
   userId: string | null;
   userName: string | null;
+  email: string | null;
   role: ClientRole;
   siteIds?: string[];
 };
@@ -34,6 +35,7 @@ export function useCurrentUser() {
     isAuthenticated: false,
     userId: null,
     userName: null,
+    email: null,
     role: "viewer",
   });
   const [isLoading, setIsLoading] = useState(true);

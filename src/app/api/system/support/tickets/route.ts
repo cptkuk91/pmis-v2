@@ -92,7 +92,9 @@ export async function POST(request: NextRequest) {
     const title = String(body.title ?? "").trim();
     const content = String(body.content ?? "").trim();
     const reporterName = String(requester.userName ?? "").trim() || "사용자";
-    const reporterEmail = String(body.reporterEmail ?? "").trim();
+    const reporterEmail = String(requester.email ?? body.reporterEmail ?? "")
+      .trim()
+      .toLowerCase();
     const priority = String(body.priority ?? "medium").trim();
 
     if (!["bug", "feature", "inquiry", "complaint"].includes(category)) {

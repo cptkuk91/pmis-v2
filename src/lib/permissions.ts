@@ -20,6 +20,7 @@ export async function requireRole(requiredRole: Role): Promise<{
   role: AppRole;
   userId: string | null;
   userName: string;
+  email: string | null;
 }> {
   const currentUser = await getCurrentUserContextOptional();
   if (!currentUser) {
@@ -38,5 +39,6 @@ export async function requireRole(requiredRole: Role): Promise<{
     role: currentUser.role,
     userId: currentUser.userId,
     userName: currentUser.userName,
+    email: currentUser.email,
   };
 }
