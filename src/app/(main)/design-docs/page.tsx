@@ -13,7 +13,6 @@ export default function DesignDocsPage() {
     { href: "/design-docs/documents/search", label: "문서검색" },
     { href: "/design-docs/documents/categories", label: "문서분류체계" },
     { href: "/design-docs/documents/system", label: "Document System" },
-    { href: "/design-docs/documents/templates", label: "양식함" },
   ];
 
   return (
