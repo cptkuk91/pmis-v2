@@ -1,0 +1,43 @@
+{
+  "name": "pmis-init",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3070",
+    "build": "next build",
+    "start": "next start -p 3070",
+    "lint": "eslint",
+    "phase6:team1:e2e": "node scripts/phase6/team1/e2e-smoke.mjs",
+    "phase6:team1:perf": "node scripts/phase6/team1/perf-check.mjs",
+    "phase6:team1:index": "node scripts/phase6/team1/index-check.mjs",
+    "phase6:team1:security": "node scripts/phase6/team1/security-scan.mjs",
+    "phase6:team2:audit": "node scripts/phase6/team2/audit-coverage-check.mjs"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
+    "@tanstack/react-table": "^8.21.3",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "mongoose": "^9.2.1",
+    "next": "16.1.6",
+    "next-auth": "5.0.0-beta.30",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-hook-form": "^7.71.2",
+    "recharts": "^3.7.0",
+    "tailwind-merge": "^3.5.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "prettier": "^3.8.1",
+    "prettier-plugin-tailwindcss": "^0.7.2",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

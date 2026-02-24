@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+/* ===== PMIS Notion Light Theme ===== */
+:root {
+  color-scheme: light;
+
+  /* Core palette */
+  --color-primary: #2f76d2;
+  --color-primary-hover: #245fb0;
+  --color-secondary: #8a8884;
+  --color-success: #217a4f;
+  --color-warning: #b5671f;
+  --color-danger: #c2413a;
+  --color-info: #2563eb;
+
+  /* Notion-like neutrals */
+  --background: #f7f6f3;
+  --background-card: #ffffff;
+  --background-soft: #fbfaf8;
+  --foreground: #37352f;
+  --foreground-muted: #787774;
+
+  --border: #e6e5e3;
+  --border-strong: #d8d7d3;
+  --border-focus: #2f76d2;
+  --overlay: rgba(15, 23, 42, 0.18);
+  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+/* ===== Tailwind Theme ===== */
+@theme inline {
+  --color-background: var(--background);
+  --color-background-card: var(--background-card);
+  --color-background-soft: var(--background-soft);
+  --color-foreground: var(--foreground);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-secondary: var(--color-secondary);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-danger: var(--color-danger);
+  --color-info: var(--color-info);
+
+  --font-sans: "Pretendard Variable", "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo",
+    "Malgun Gothic", sans-serif;
+}
+
+/* ===== 기본 스타일 ===== */
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: #dbe9ff;
+  color: #1f2937;
+}
