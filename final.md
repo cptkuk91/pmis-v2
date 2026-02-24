@@ -148,6 +148,7 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
 | ✅ 법률/KS/전문사이트 | `/system-admin/common/law-info`, `ks-info`, `pro-sites` | `GET /api/system/external-links` | `external_link_items` | `viewer+` |
 | ✅ 코드관리(관련사) | `/system-admin/codes/partners` | `GET/POST /api/system/codes/partners` | `code_groups`, `code_items` | `site_admin+` |
 | ✅ 코드관리(자재/장비) | `/system-admin/codes/materials`, `equipment` | `GET/POST/PATCH/DELETE /api/system/codes/*` | `code_groups`, `code_items` | `site_admin+` |
+| ✅ 사용자-현장 매핑 | `/system-admin/site-memberships` | `GET/POST/PATCH /api/system/site-memberships*` | `site_memberships`, `users`, `sites` | `super_admin` |
 
 **1팀 Phase 2 DB 모델:**
 `notices`, `meetings`, `meeting_attendees`, `issues`, `resource_library_items`, `external_link_items`
@@ -159,22 +160,19 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
 | ✅ 공사개요 | `/site-info/overview` | `GET/PATCH /api/sites/:id` | `sites` | 조회 `viewer+`, 수정 `site_admin+` |
 | ✅ 사업연혁 | `/site-info/history` | `GET/POST /api/sites/history` | `site_histories` | `manager+` |
 | ✅ 인원정보 | `/site-info/people` | `GET/POST /api/sites/personnel` | `site_personnel` | `manager+` |
-| ✅ 비상연락망 | `/site-info/emergency-contacts` | `GET/POST /api/sites/emergency-contacts` | `emergency_contacts` | `manager+` |
-| ✅ 분양자료 | `/site-info/sales-materials` | `GET/POST /api/sites/sales-materials` | `file_assets` | `manager+` |
 | ✅ 시공계획 | `/site-info/construction-plans` | `GET/POST /api/sites/construction-plans` | `construction_plans` | `manager+` |
 | ✅ 시방서 | `/site-info/specifications` | `GET/POST /api/sites/specifications` | `specifications` | `manager+` |
 | ✅ 주요공법 | `/site-info/methods` | `GET/POST /api/sites/methods` | `construction_methods` | `manager+` |
 | ✅ 방문자현황 | `/site-info/visitors` | `GET/POST /api/sites/visitors` | `visitor_logs` | `manager+` |
-| ✅ 모델하우스사진 | `/site-info/modelhouse-photos` | `GET/POST /api/sites/modelhouse-photos` | `file_assets` | `manager+` |
 
 **2팀 Phase 2 DB 모델:**
-`site_histories`, `site_personnel`, `emergency_contacts`, `visitor_logs`, `construction_plans`, `specifications`, `construction_methods`
+`site_histories`, `site_personnel`, `visitor_logs`, `construction_plans`, `specifications`, `construction_methods`
 
 #### Phase 2 공동 완료 기준
 
 - [x] 대시보드 위젯 4종 데이터 표시
 - [x] 회의/ISSUE/자료실 CRUD 동작
-- [x] 현장 정보 10개 하위 페이지 CRUD 동작
+- [x] 현장 정보 7개 하위 페이지 CRUD 동작
 - [x] 인원정보 탭(시공사/관련사/관공서) 필터 전환 동작
 
 ---

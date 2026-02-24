@@ -14,6 +14,7 @@ const menuItems = [
   { href: "/system-admin/integrations/wis", label: "WIS 연동" },
   { href: "/system-admin/integrations/dis", label: "DIS 연동" },
   { href: "/system-admin/sites", label: "현장 등록/관리" },
+  { href: "/system-admin/site-memberships", label: "사용자-현장 매핑" },
   { href: "/system-admin/support/faq", label: "Online Support FAQ" },
   { href: "/system-admin/support/tickets", label: "문의/문제신고" },
 ];

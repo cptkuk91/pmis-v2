@@ -7,13 +7,10 @@ const subMenus = [
   { href: "/site-info/overview", label: "공사개요" },
   { href: "/site-info/history", label: "사업연혁" },
   { href: "/site-info/people", label: "인원정보" },
-  { href: "/site-info/emergency-contacts", label: "비상연락망" },
-  { href: "/site-info/sales-materials", label: "분양자료" },
   { href: "/site-info/construction-plans", label: "시공계획" },
   { href: "/site-info/specifications", label: "시방서" },
   { href: "/site-info/methods", label: "주요공법" },
   { href: "/site-info/visitors", label: "방문자현황" },
-  { href: "/site-info/modelhouse-photos", label: "모델하우스사진" },
 ];
 
 export default function SiteInfoLayout({

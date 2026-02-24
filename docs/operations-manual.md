@@ -256,13 +256,10 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 | 공사개요 | `/site-info/overview` | 현장 기본 정보 (공사명, 발주처, 공사기간, 위치 등) |
 | 공사이력 | `/site-info/history` | 현장 공사 이력 관리 |
 | 인원현황 | `/site-info/people` | 현장 인원 현황 (직급별, 부서별) |
-| 비상연락망 | `/site-info/emergency-contacts` | 비상 시 연락처 목록 관리 |
-| 영업자료 | `/site-info/sales-materials` | 영업 관련 문서 및 자료 |
 | 공사계획 | `/site-info/construction-plans` | 공사 시행 계획서 |
 | 시방서 | `/site-info/specifications` | 시방서 등록 및 관리 |
 | 시공방법 | `/site-info/methods` | 시공 방법 문서 |
 | 방문자관리 | `/site-info/visitors` | 현장 방문자 기록 |
-| 모델하우스 사진 | `/site-info/modelhouse-photos` | 모델하우스 관련 사진 |
 
 ---
 
@@ -430,6 +427,7 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 | 이슈관리 | `/system-admin/common/issues` | 현장 이슈 등록 및 추적 |
 | 자료실 | `/system-admin/common/library` | 공용 자료실 관리 |
 | 회의록 | `/system-admin/common/minutes` | 회의록 관리 |
+| 사용자-현장 매핑 | `/system-admin/site-memberships` | 가입 사용자(`users`)를 현장(`sites`)에 권한과 함께 배정/해제 |
 
 ### 외부 연계 (`/system-admin/integrations`)
 
