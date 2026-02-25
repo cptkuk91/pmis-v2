@@ -33,8 +33,8 @@ export function SideBar() {
             </Link>
           </li>
           <li>
-            <Link href="/system-admin/integrations/dis" className="hover:text-foreground">
-              DIS 연계
+            <Link href="/design-docs/design/drawing-viewer" className="hover:text-foreground">
+              도면 열람 시스템
             </Link>
           </li>
           <li>

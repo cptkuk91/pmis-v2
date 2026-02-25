@@ -7,6 +7,15 @@ import { resolveSiteId } from "@/lib/site-context";
 import ProjectCalendarEvent from "@/models/ProjectCalendarEvent";
 import { logCreate } from "@/lib/audit-logger";
 
+type CalendarCategory = "general" | "milestone" | "inspection" | "meeting";
+
+const categoryColorMap: Record<CalendarCategory, string> = {
+  general: "#2f76d2",
+  milestone: "#7c5cff",
+  inspection: "#cc7a00",
+  meeting: "#217a4f",
+};
+
 function parsePositiveInt(rawValue: string | null, fallback: number, max = 100): number {
   const parsed = Number(rawValue ?? String(fallback));
   if (!Number.isFinite(parsed) || parsed < 1) {
@@ -44,6 +53,18 @@ function parseDateValue(rawValue: unknown, fieldName: string): Date {
   return parsed;
 }
 
+function isCalendarCategory(value: string): value is CalendarCategory {
+  return value === "general" || value === "milestone" || value === "inspection" || value === "meeting";
+}
+
+function normalizeCategory(rawValue: unknown): CalendarCategory {
+  const raw = String(rawValue ?? "general").trim();
+  if (isCalendarCategory(raw)) {
+    return raw;
+  }
+  return "general";
+}
+
 export async function GET(request: NextRequest) {
   try {
     await requireRole("viewer");
@@ -69,6 +90,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (category !== "all") {
+      if (!isCalendarCategory(category)) {
+        throw VALIDATION_ERROR("category 파라미터가 올바르지 않습니다.");
+      }
       filter.category = category;
     }
 
@@ -119,16 +143,17 @@ export async function POST(request: NextRequest) {
     if (endDate.getTime() < startDate.getTime()) {
       throw VALIDATION_ERROR("endDate는 startDate보다 빠를 수 없습니다.");
     }
+    const category = normalizeCategory(body.category);
 
     const created = await ProjectCalendarEvent.create({
       siteId,
       title,
-      category: String(body.category ?? "general").trim() || "general",
+      category,
       startDate,
       endDate,
       isAllDay: Boolean(body.isAllDay ?? true),
       description: String(body.description ?? "").trim(),
-      color: String(body.color ?? "#2f76d2").trim() || "#2f76d2",
+      color: categoryColorMap[category],
       createdBy: requester.userId ?? undefined,
       updatedBy: requester.userId ?? undefined,
     });

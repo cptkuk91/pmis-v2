@@ -46,9 +46,9 @@ const defaultExternalLinks = {
     {
       _id: "default-general-2",
       category: "general",
-      name: "DIS",
-      url: "https://dis.example.com",
-      description: "설계도면 검색/열람 연계 시스템",
+      name: "도면 열람 시스템",
+      url: "https://drawing-viewer.example.com",
+      description: "설계도면 검색/열람 연계",
     },
     {
       _id: "default-general-3",

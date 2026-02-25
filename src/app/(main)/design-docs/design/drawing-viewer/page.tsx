@@ -24,6 +24,7 @@ type ExternalLinkItem = {
   _id: string;
   name: string;
   url: string;
+  description?: string;
 };
 
 type ExternalLinkResponse = {
@@ -31,7 +32,7 @@ type ExternalLinkResponse = {
   data: ExternalLinkItem[];
 };
 
-export default function DisIntegrationPage() {
+export default function DrawingViewerIntegrationPage() {
   const [keyword, setKeyword] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
   const [rows, setRows] = useState<DrawingRow[]>([]);
@@ -39,7 +40,7 @@ export default function DisIntegrationPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [disUrl, setDisUrl] = useState("https://dis.example.com");
+  const [drawingViewerUrl, setDrawingViewerUrl] = useState("https://drawing-viewer.example.com");
 
   const load = useCallback(async (nextPage: number, query: string) => {
     setIsLoading(true);
@@ -77,9 +78,11 @@ export default function DisIntegrationPage() {
         });
         const result = (await response.json()) as ExternalLinkResponse;
         if (!result.ok) return;
-        const disLink = result.data.find((item) => item.name.toLowerCase().includes("dis"));
-        if (disLink?.url) {
-          setDisUrl(disLink.url);
+        const drawingViewerLink = result.data.find(
+          (item) => item.name === "도면 열람 시스템" || item.description?.includes("도면"),
+        );
+        if (drawingViewerLink?.url) {
+          setDrawingViewerUrl(drawingViewerLink.url);
         }
       } catch {
         // no-op
@@ -91,9 +94,9 @@ export default function DisIntegrationPage() {
   return (
     <section className="space-y-4 rounded-xl border border-border bg-background-card p-4 shadow-[var(--shadow-soft)] sm:p-6">
       <header className="space-y-2">
-        <h1 className="text-xl font-semibold text-foreground">DIS 연계</h1>
+        <h1 className="text-xl font-semibold text-foreground">도면 열람 시스템</h1>
         <p className="text-sm text-foreground-muted">
-          PMIS 도면 검색 결과를 확인하고 DIS 열람 화면으로 바로 이동합니다.
+          PMIS 도면 검색 결과를 확인하고 도면 열람 화면으로 바로 이동합니다.
         </p>
       </header>
 
@@ -105,12 +108,12 @@ export default function DisIntegrationPage() {
           PMIS 도면관리로 이동
         </Link>
         <a
-          href={disUrl}
+          href={drawingViewerUrl}
           target="_blank"
           rel="noreferrer"
           className="rounded-md border border-border bg-background-soft px-3 py-2 text-sm font-medium text-foreground hover:bg-background"
         >
-          DIS 도면 열람 (새 창)
+          도면 열람 시스템 (새 창)
         </a>
       </div>
 
@@ -150,12 +153,12 @@ export default function DisIntegrationPage() {
             className: "w-24",
             render: (_value, row) => (
               <a
-                href={`${disUrl}?q=${encodeURIComponent(row.drawingNo)}`}
+                href={`${drawingViewerUrl}?q=${encodeURIComponent(row.drawingNo)}`}
                 target="_blank"
                 rel="noreferrer"
                 className="text-primary underline underline-offset-2"
               >
-                DIS 열기
+                도면 열람
               </a>
             ),
           },

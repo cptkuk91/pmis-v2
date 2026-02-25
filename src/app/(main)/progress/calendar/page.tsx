@@ -22,6 +22,36 @@ type CalendarResponse = {
   error?: string;
 };
 
+type CalendarCategory = "general" | "milestone" | "inspection" | "meeting";
+type CalendarCategoryFilter = "all" | CalendarCategory;
+
+const calendarCategoryOrder: CalendarCategory[] = [
+  "general",
+  "milestone",
+  "inspection",
+  "meeting",
+];
+
+const calendarCategoryMeta: Record<
+  CalendarCategory,
+  {
+    label: string;
+    color: string;
+  }
+> = {
+  general: { label: "일반", color: "#2f76d2" },
+  milestone: { label: "마일스톤", color: "#7c5cff" },
+  inspection: { label: "점검", color: "#cc7a00" },
+  meeting: { label: "회의", color: "#217a4f" },
+};
+
+function toCalendarCategory(value: string): CalendarCategory {
+  if (value in calendarCategoryMeta) {
+    return value as CalendarCategory;
+  }
+  return "general";
+}
+
 function currentMonth(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -37,15 +67,14 @@ export default function ProgressCalendarPage() {
 
   const [keyword, setKeyword] = useState("");
   const [month, setMonth] = useState(currentMonth);
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState<CalendarCategoryFilter>("all");
 
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("general");
+  const [category, setCategory] = useState<CalendarCategory>("general");
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [isAllDay, setIsAllDay] = useState(true);
   const [description, setDescription] = useState("");
-  const [color, setColor] = useState("#2f76d2");
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -109,7 +138,7 @@ export default function ProgressCalendarPage() {
           endDate,
           isAllDay,
           description,
-          color,
+          color: calendarCategoryMeta[category].color,
         }),
       });
 
@@ -124,7 +153,6 @@ export default function ProgressCalendarPage() {
       setEndDate(new Date().toISOString().slice(0, 10));
       setIsAllDay(true);
       setDescription("");
-      setColor("#2f76d2");
       setMessage("일정이 등록되었습니다.");
       await loadData(1);
     } catch (err) {
@@ -158,14 +186,15 @@ export default function ProgressCalendarPage() {
           <span className="block text-sm font-medium text-foreground">분류</span>
           <select
             value={categoryFilter}
-            onChange={(event) => setCategoryFilter(event.target.value)}
+            onChange={(event) => setCategoryFilter(event.target.value as CalendarCategoryFilter)}
             className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
           >
             <option value="all">전체</option>
-            <option value="general">일반</option>
-            <option value="milestone">마일스톤</option>
-            <option value="inspection">점검</option>
-            <option value="meeting">회의</option>
+            {calendarCategoryOrder.map((categoryKey) => (
+              <option key={categoryKey} value={categoryKey}>
+                {calendarCategoryMeta[categoryKey].label}
+              </option>
+            ))}
           </select>
         </label>
         <button
@@ -191,13 +220,14 @@ export default function ProgressCalendarPage() {
               <span className="block text-sm font-medium text-foreground">분류</span>
               <select
                 value={category}
-                onChange={(event) => setCategory(event.target.value)}
+                onChange={(event) => setCategory(toCalendarCategory(event.target.value))}
                 className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
               >
-                <option value="general">일반</option>
-                <option value="milestone">마일스톤</option>
-                <option value="inspection">점검</option>
-                <option value="meeting">회의</option>
+                {calendarCategoryOrder.map((categoryKey) => (
+                  <option key={categoryKey} value={categoryKey}>
+                    {calendarCategoryMeta[categoryKey].label}
+                  </option>
+                ))}
               </select>
             </label>
             <FormInput
@@ -216,7 +246,7 @@ export default function ProgressCalendarPage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-[120px_180px_1fr]">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-[120px_1fr]">
             <label className="mt-7 flex items-center gap-2 text-sm text-foreground">
               <input
                 type="checkbox"
@@ -226,12 +256,6 @@ export default function ProgressCalendarPage() {
               />
               종일 일정
             </label>
-            <FormInput
-              label="색상"
-              type="color"
-              value={color}
-              onChange={(event) => setColor(event.target.value)}
-            />
             <label className="space-y-1">
               <span className="block text-sm font-medium text-foreground">설명</span>
               <textarea
@@ -262,17 +286,13 @@ export default function ProgressCalendarPage() {
 
       <DataTable<CalendarEventRow>
         columns={[
+          { key: "title", header: "일정" },
           {
-            key: "title",
-            header: "일정",
-            render: (value, row) => (
-              <div className="flex items-center gap-2">
-                <span className="inline-block size-2 rounded-full" style={{ backgroundColor: row.color }} />
-                <span>{String(value)}</span>
-              </div>
-            ),
+            key: "category",
+            header: "분류",
+            className: "w-24",
+            render: (value) => calendarCategoryMeta[toCalendarCategory(String(value))].label,
           },
-          { key: "category", header: "분류", className: "w-24" },
           {
             key: "startDate",
             header: "시작",

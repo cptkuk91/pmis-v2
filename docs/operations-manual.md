@@ -444,7 +444,7 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 | 연계 | 경로 | 설명 |
 |------|------|------|
 | WIS 연동 | `/system-admin/integrations/wis` | 근로자 정보 시스템(WIS) 데이터 동기화 |
-| DIS 연동 | `/system-admin/integrations/dis` | 설계정보 시스템(DIS) 연동 관리 |
+| 도면 열람 시스템 | `/design-docs/design/drawing-viewer` | 설계도면 검색/열람 연동 관리 |
 
 ### 고객지원 (`/system-admin/support`)
 

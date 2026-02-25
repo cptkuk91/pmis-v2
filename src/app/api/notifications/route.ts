@@ -23,13 +23,23 @@ type NotificationItem = {
 };
 
 function resolveSyncHref(sourceSystem: string): string {
-  if (sourceSystem === "dis") {
-    return "/system-admin/integrations/dis";
-  }
   if (sourceSystem === "open_meteo") {
     return "/progress/weather";
   }
-  return "/system-admin";
+  if (sourceSystem === "other") {
+    return "/system-admin";
+  }
+  return "/design-docs/design/drawing-viewer";
+}
+
+function formatSourceSystem(sourceSystem: string): string {
+  if (sourceSystem === "open_meteo") {
+    return "Open-Meteo";
+  }
+  if (sourceSystem === "other") {
+    return "기타";
+  }
+  return "도면 열람 시스템";
 }
 
 function toIsoString(value: Date | string | null | undefined): string {
@@ -174,7 +184,7 @@ export async function GET() {
         id: `sync-${String(syncLog._id)}`,
         type: "sync" as const,
         severity: "danger" as const,
-        title: `연계 실패(${String(syncLog.sourceSystem)})`,
+        title: `연계 실패(${formatSourceSystem(String(syncLog.sourceSystem ?? "other"))})`,
         message: String(syncLog.errorMessage ?? "에러 메시지 없음"),
         href: resolveSyncHref(String(syncLog.sourceSystem ?? "other")),
         timestamp: toIsoString(readDateField(syncLog, "startedAt", "createdAt")),
