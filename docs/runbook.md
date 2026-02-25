@@ -6,7 +6,7 @@
 2. [롤백 절차](#2-롤백-절차)
 3. [장애 대응](#3-장애-대응)
 4. [모니터링](#4-모니터링)
-5. [점검 스크립트](#5-점검-스크립트)
+5. [점검 절차](#5-점검-절차)
 
 ---
 
@@ -43,8 +43,10 @@ npm run dev
 | `MONGODB_URI` | O | MongoDB Atlas 연결 문자열 | `mongodb+srv://user:pass@cluster.mongodb.net/pmis?retryWrites=true&w=majority` |
 | `NEXTAUTH_SECRET` | O | NextAuth JWT 암호화 키 (랜덤 문자열) | `openssl rand -base64 32` 로 생성 |
 | `NEXTAUTH_URL` | O | 서비스 기본 URL | `https://pmis.example.com` |
-| `GOOGLE_CLIENT_ID` | O | Google OAuth 클라이언트 ID | Google Cloud Console에서 발급 |
-| `GOOGLE_CLIENT_SECRET` | O | Google OAuth 클라이언트 시크릿 | Google Cloud Console에서 발급 |
+| `AUTH_GOOGLE_ID` | O* | Google OAuth 클라이언트 ID (권장 키) | Google Cloud Console에서 발급 |
+| `AUTH_GOOGLE_SECRET` | O* | Google OAuth 클라이언트 시크릿 (권장 키) | Google Cloud Console에서 발급 |
+| `GOOGLE_CLIENT_ID` | O* | Google OAuth 클라이언트 ID (대체 키) | Google Cloud Console에서 발급 |
+| `GOOGLE_CLIENT_SECRET` | O* | Google OAuth 클라이언트 시크릿 (대체 키) | Google Cloud Console에서 발급 |
 | `PMIS_REQUIRE_LOGIN` | - | 로그인 필수 여부 (`true`/`false`) | 프로덕션은 `true`, 개발은 `false` |
 | `S3_ENDPOINT` | - | S3 호환 스토리지 엔드포인트 (추후) | - |
 | `S3_ACCESS_KEY` | - | S3 접근 키 (추후) | - |
@@ -53,6 +55,7 @@ npm run dev
 
 **주의사항**:
 - `NEXTAUTH_SECRET`는 프로덕션에서 반드시 안전한 랜덤 값으로 설정한다. `your-secret-key-here` 같은 기본값을 사용하지 않는다.
+- Google OAuth 키는 `AUTH_GOOGLE_*` 또는 `GOOGLE_CLIENT_*` 중 한 쌍이 반드시 필요하다. (권장: `AUTH_GOOGLE_*`)
 - `PMIS_REQUIRE_LOGIN`을 `false`로 설정하면 인증 없이 시스템에 접근 가능하므로, 프로덕션 환경에서는 반드시 `true`로 설정한다.
 - `.env.local` 파일은 절대 git에 커밋하지 않는다.
 
@@ -216,16 +219,16 @@ pm2 logs pmis --lines 100
 
 ### 3.4 외부 연계 실패
 
-#### WIS (근로자정보시스템) 연동 실패
+#### 도면 열람 시스템 연계 실패
 
-**증상**: 출역 데이터 미동기화, `/system-admin/integrations/wis` 페이지에서 동기화 실패 표시
+**증상**: `/design-docs/design/drawing-viewer`에서 외부 열람 링크가 열리지 않거나 잘못된 URL로 이동
 
 **조치**:
-1. `/api/integrations/wis/logs`에서 동기화 로그를 확인한다.
-2. WIS 서버 접속 가능 여부를 확인한다.
-3. 실패 건 재처리: `/api/integrations/wis/retry-failed` 호출.
-4. 동기화가 계속 실패하면 WIS 측 시스템 상태를 확인한다.
-5. `IntegrationSyncLog` 모델에서 에러 상세를 확인한다.
+1. 외부 링크 설정 API 확인: `GET /api/system/external-links?category=general`
+2. `name="도면 열람 시스템"` 항목의 `url` 값이 정확한지 확인한다.
+3. 대상 URL이 사내망/방화벽 정책에 의해 차단되지 않았는지 확인한다.
+4. 브라우저 팝업 차단 여부를 확인한다. (새 창 열기 기능)
+5. 필요 시 관리자 화면에서 외부 링크 항목을 수정한 뒤 재시도한다.
 
 #### Open-Meteo (기상정보) 연동 실패
 
@@ -233,7 +236,7 @@ pm2 logs pmis --lines 100
 
 **조치**:
 1. Open-Meteo API 상태 확인: `curl https://api.open-meteo.com/v1/forecast?latitude=37.5&longitude=127.0&daily=temperature_2m_max`
-2. 현장의 위도/경도 설정이 올바른지 확인한다 (Site 모델).
+2. 현장 주소(`Site.address`)가 비어있지 않고 지오코딩 가능한 형식인지 확인한다.
 3. 실패 건 재처리: `/api/integrations/open-meteo/retry-failed` 호출.
 4. Open-Meteo는 무료 API이므로 Rate Limit(분당 요청 수)에 걸릴 수 있다. 잠시 대기 후 재시도한다.
 5. `WeatherSnapshot` 컬렉션에서 최근 데이터 존재 여부를 확인한다.
@@ -263,7 +266,7 @@ pm2 monit
    - `NODE_OPTIONS="--max-old-space-size=2048"` 설정으로 힙 메모리 상한 증가
    - 장시간 운용 후 메모리가 지속적으로 증가하면 메모리 누수 조사 필요
 3. **CPU 과부하 시**:
-   - MongoDB 쿼리가 인덱스를 활용하고 있는지 확인 (`npm run phase6:team1:index`)
+   - MongoDB 쿼리가 인덱스를 활용하고 있는지 확인 (`phase6:*` 스크립트 사용 가능 시 `npm run phase6:team1:index`)
    - 대량 데이터 조회 시 pagination이 적용되어 있는지 확인
    - 동시 접속자가 많은 경우 인스턴스 스케일링 고려
 4. **MongoDB 부하 시**:
@@ -319,8 +322,8 @@ time curl -s -o /dev/null -w "%{http_code} %{time_total}s" \
 
 **기준 초과 시 조치**:
 1. MongoDB Atlas Performance Advisor에서 느린 쿼리 확인
-2. `npm run phase6:team1:index`로 인덱스 상태 점검
-3. `npm run phase6:team1:perf`로 성능 점검 실행
+2. `phase6:*` 스크립트가 사용 가능하면 `npm run phase6:team1:index`로 인덱스 상태 점검
+3. `phase6:*` 스크립트가 사용 가능하면 `npm run phase6:team1:perf`로 성능 점검 실행
 
 ### 4.3 에러 로그 확인
 
@@ -349,82 +352,64 @@ pm2 logs pmis --lines 500 | grep "\[audit-logger\]"
 
 ---
 
-## 5. 점검 스크립트
+## 5. 점검 절차
 
-### 5.1 E2E 스모크 테스트
+### 5.1 자동 점검 스크립트 상태 확인
 
-```bash
-npm run phase6:team1:e2e
-```
-
-- **실행 파일**: `scripts/phase6/team1/e2e-smoke.mjs`
-- **목적**: 주요 API 엔드포인트가 정상 응답하는지 확인
-- **실행 시점**: 배포 직후, 장애 복구 후
-- **성공 기준**: 모든 엔드포인트가 2xx/3xx 응답
-
-### 5.2 성능 점검
+`package.json`에는 `phase6:*` 점검 스크립트가 정의되어 있으나, 현재 저장소에는 `scripts/` 디렉토리가 없을 수 있다.
 
 ```bash
-npm run phase6:team1:perf
+test -d scripts && echo "scripts present" || echo "scripts missing"
 ```
 
-- **실행 파일**: `scripts/phase6/team1/perf-check.mjs`
-- **목적**: 주요 API의 응답 시간이 기준 이내인지 확인
-- **실행 시점**: 배포 후, 성능 저하 의심 시
-- **성공 기준**: 각 API 응답 시간이 기준치 이내
+- `scripts present`: 자동 점검 스크립트 실행
+- `scripts missing`: 아래 수동 점검 절차로 대체
 
-### 5.3 인덱스 검증
+### 5.2 수동 스모크 테스트
 
 ```bash
-npm run phase6:team1:index
+# 앱 기동 확인
+curl -I http://localhost:3070
+
+# 인증/사용자 컨텍스트
+curl -s http://localhost:3070/api/me | jq .
+
+# 대시보드 요약
+curl -s http://localhost:3070/api/dashboard/summary | jq .
+
+# 통합검색
+curl -s "http://localhost:3070/api/search/unified?q=test" | jq .
+
+# 날씨 연동
+curl -s "http://localhost:3070/api/progress/weather?days=3" | jq .
 ```
 
-- **실행 파일**: `scripts/phase6/team1/index-check.mjs`
-- **목적**: MongoDB 컬렉션에 필요한 인덱스가 존재하는지 검증
-- **실행 시점**: 배포 후, 쿼리 성능 저하 시
-- **성공 기준**: 필수 인덱스가 모두 존재
+### 5.3 수동 기능 점검 체크리스트
 
-### 5.4 보안 스캔
+1. 로그인/권한
+- 미인증 접근 시 `/login` 리다이렉트 확인 (`PMIS_REQUIRE_LOGIN=true`)
+- `viewer/manager/site_admin/super_admin` 권한별 메뉴/쓰기 권한 확인
 
-```bash
-npm run phase6:team1:security
-```
+2. 현장 컨텍스트
+- `/system-admin/sites`에서 현장 생성 (`super_admin`)
+- `/system-admin/site-memberships`에서 사용자-현장 배정
+- TopBar 현장 전환 후 데이터가 현장 기준으로 변경되는지 확인
 
-- **실행 파일**: `scripts/phase6/team1/security-scan.mjs`
-- **목적**: 보안 취약점 점검 (CSRF, XSS, 인증 우회 등)
-- **실행 시점**: 배포 전, 정기 보안 점검 (주 1회 권장)
-- **성공 기준**: 보안 스캔 통과, 취약점 미발견
+3. 핵심 CRUD
+- 문서: `/design-docs/documents/wizard/1`, `/design-docs/documents/search`
+- 도면: `/design-docs/design/drawings`, `/design-docs/design/reviews`
+- 안전: `/quality-safety/safety/management/daily-log`
+- 자원: `/resource-procurement/materials/plan-actual`
 
-### 5.5 감사로그 커버리지
+4. 외부 연계
+- 날씨(Open-Meteo): `/progress/weather`
+- 도면 열람 시스템: `/design-docs/design/drawing-viewer`
 
-```bash
-npm run phase6:team2:audit
-```
+### 5.4 배포 후 권장 점검 순서
 
-- **실행 파일**: `scripts/phase6/team2/audit-coverage-check.mjs`
-- **목적**: 데이터 변경 API에 감사 로그가 올바르게 적용되어 있는지 확인
-- **실행 시점**: 신규 API 추가 후, 정기 점검 (월 1회 권장)
-- **성공 기준**: 모든 변경 API(POST/PUT/DELETE)에 감사 로그 기록이 존재
-
-### 5.6 전체 점검 실행 순서
-
-배포 직후 또는 정기 점검 시 다음 순서로 실행한다:
-
-```bash
-# 1. 인덱스 검증 (가장 먼저 - DB 구조 확인)
-npm run phase6:team1:index
-
-# 2. 보안 스캔
-npm run phase6:team1:security
-
-# 3. E2E 스모크 테스트 (기능 정상 동작 확인)
-npm run phase6:team1:e2e
-
-# 4. 성능 점검
-npm run phase6:team1:perf
-
-# 5. 감사로그 커버리지 (변경 추적 확인)
-npm run phase6:team2:audit
-```
-
-모든 스크립트가 성공적으로 통과하면 배포가 정상 완료된 것으로 판단한다.
+1. 서버/DB 연결 확인
+2. 인증/권한 확인
+3. 현장 생성 및 사용자-현장 매핑 확인
+4. 핵심 CRUD 스모크 테스트
+5. 외부 연계(Open-Meteo/도면 열람) 동작 확인
+6. 감사 로그/에러 로그 확인

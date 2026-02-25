@@ -25,7 +25,7 @@
 - 로그인 후 시스템은 사용자에게 할당된 현장(Site) 목록을 제공한다.
 - 현장 선택 시 쿠키(`pmis_site_id`)에 현장 ID가 저장된다.
 - 모든 데이터 조회/입력은 선택된 현장 기준으로 동작한다.
-- 현장이 지정되지 않은 경우 가장 먼저 생성된 현장이 자동 선택된다.
+- 로그인 사용자에게 배정된 현장이 없으면 "현장 없음" 상태가 표시되며 업무 데이터가 조회되지 않는다.
 - 현장 전환 시 메뉴의 현장 선택 드롭다운을 사용한다.
 
 ---
@@ -88,7 +88,6 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 #### 문서 부가 기능
 
 - **분류관리** (`/design-docs/documents/categories`): 문서 분류 체계 생성/수정
-- **양식관리** (`/design-docs/documents/templates`): 재사용 가능한 문서 양식 등록
 - **시스템항목** (`/design-docs/documents/system`): 문서 관련 시스템 코드 설정
 
 ---
@@ -100,6 +99,12 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 - 현장의 전체 도면 목록을 조회한다.
 - 도면번호, 도면명, 분야(discipline), 위치(location) 기준으로 필터링 가능하다.
 - 도면 등록 시 파일 업로드와 함께 기본정보를 입력한다.
+
+#### 도면 열람 시스템 (`/design-docs/design/drawing-viewer`)
+
+- PMIS 도면 목록을 조회하고 외부 도면 열람 시스템으로 바로 이동한다.
+- 외부 연동 URL은 `ExternalLinkItem(category=general)`에서 "도면 열람 시스템" 항목을 사용한다.
+- 기존 `/system-admin/integrations/drawing-viewer` 경로는 호환용 리다이렉트다.
 
 #### 도면검토 (`/design-docs/design/reviews`)
 
@@ -172,26 +177,21 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 
 #### 공급원승인 (`/resource-procurement/supplier-approvals`)
 
-- **승인요청** (`/resource-procurement/supplier-approvals/requests`): 자재/장비 공급업체 승인 요청서 작성
-- **승인현황** (`/resource-procurement/supplier-approvals/status`): 승인 진행 상태 조회
+- 공급원 승인 요청/진행 상태를 단일 화면에서 관리한다.
 
-#### 자재검수 (`/resource-procurement/material-inspections`)
+#### 자재검수 (`/qc/material-inspection`)
 
-- **검수등록** (`/resource-procurement/material-inspections/register`): 입고 자재 검수 기록 등록
-- **검수요청** (`/resource-procurement/material-inspections/requests`): 검수 요청 목록
-- **검수대장** (`/resource-procurement/material-inspections/ledger`): 전체 검수 이력 조회
+- 자재 검수는 QC 메뉴에서 운영한다.
+- API는 `/api/qc/material-inspections`를 사용한다.
 
 #### 출역관리 (`/resource-procurement/workforce`)
 
 - **일일출역** (`/resource-procurement/workforce/daily`): 일일 인원 출역 기록 등록
-- **출역현황** (`/resource-procurement/workforce/roster`): 인원별 출역 현황 조회
-- **출역분석** (`/resource-procurement/workforce/analysis`): 공종별/업체별 출역 분석
-- **출역요약** (`/resource-procurement/workforce/summary`): 기간별 출역 요약 통계
+- **근태 통계** (`/resource-procurement/workforce/statistics`): 기간별 출역 요약 통계 조회
 
 #### 하도급 (`/resource-procurement/subcontract`)
 
-- **심사등록** (`/resource-procurement/subcontract/reviews/new`): 하도급 심사 요청서 신규 작성
-- **심사대장** (`/resource-procurement/subcontract/review-ledger`): 하도급 심사 이력 조회
+- 하도급 심사 등록/조회는 단일 화면에서 관리한다.
 
 #### 손익현황 (`/resource-procurement/profit-loss`)
 
@@ -265,12 +265,9 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 
 | 메뉴 | 경로 | 설명 |
 |------|------|------|
-| 공사개요 | `/site-info/overview` | 현장 기본 정보 (공사명, 발주처, 공사기간, 위치 등) |
-| 공사이력 | `/site-info/history` | 현장 공사 이력 관리 |
-| 인원현황 | `/site-info/people` | 현장 인원 현황 (직급별, 부서별) |
-| 공사계획 | `/site-info/construction-plans` | 공사 시행 계획서 |
-| 시방서 | `/site-info/specifications` | 시방서 등록 및 관리 |
-| 시공방법 | `/site-info/methods` | 시공 방법 문서 |
+| 현장 개요 | `/site-info/overview` | 현장 기본 정보 (코드/명칭/주소/기간/상태) |
+| 관계자 현황 | `/site-info/people` | 현장 인력/연락처 정보 |
+| 기술 문서 | `/site-info/technical-docs` | 기술 문서/기준 정보 |
 | 방문자관리 | `/site-info/visitors` | 현장 방문자 기록 |
 
 ---
@@ -409,15 +406,16 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 
 - 사용자 정보는 `User` 모델에 저장된다.
 - Google OAuth로 최초 인증 시 사용자 레코드가 자동 생성된다.
-- `super_admin`은 사용자 역할(`role`) 변경 및 현장 할당(`siteIds`) 관리가 가능하다.
-- 사용자 비활성화/활성화 처리가 가능하다.
+- 첫 로그인 사용자는 자동으로 `super_admin`이 된다.
+- 사용자-현장 배정과 현장 내 역할은 `SiteMembership`에서 관리한다.
+- 사용자 역할(`User.role`) 변경 전용 UI/API는 현재 별도 제공하지 않는다.
 
 ### 현장 관리
 
 - 현장 정보는 `Site` 모델에 저장된다.
-- `super_admin`은 현장 생성/수정/삭제가 가능하다.
-- 현장별 기본 정보: 현장명, 위치, 발주처, 공사기간, 좌표(위도/경도) 등
-- API: `GET/PUT/DELETE /api/sites/[id]`
+- `super_admin`은 현장 생성/수정이 가능하다.
+- 현장 기본 정보: `siteCode`, `siteName`, `address`, `status`, `startDate`, `endDate`, `description`
+- API: `GET/POST /api/sites`, `GET/PATCH /api/sites/[id]`
 
 ### 현장 회원 관리
 
@@ -433,17 +431,15 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 | 메뉴 | 경로 | 설명 |
 |------|------|------|
 | 외부사이트 | `/system-admin/common/external-sites` | 법령정보/KS/전문사이트 외부 링크 통합 조회 |
-| 회의관리 | `/system-admin/common/meetings` | 전체 회의 관리 |
 | 이슈관리 | `/system-admin/common/issues` | 현장 이슈 등록 및 추적 |
 | 자료실 | `/system-admin/common/library` | 공용 자료실 관리 |
 | 회의/회의록 | `/system-admin/common/meetings?tab=meetings|minutes` | 회의 개최/회의록 통합 관리 |
 | 사용자-현장 매핑 | `/system-admin/site-memberships` | 가입 사용자(`users`)를 현장(`sites`)에 권한과 함께 배정/해제 |
 
-### 외부 연계 (`/system-admin/integrations`)
+### 외부 연계
 
 | 연계 | 경로 | 설명 |
 |------|------|------|
-| WIS 연동 | `/system-admin/integrations/wis` | 근로자 정보 시스템(WIS) 데이터 동기화 |
 | 도면 열람 시스템 | `/design-docs/design/drawing-viewer` | 설계도면 검색/열람 연동 관리 |
 
 ### 고객지원 (`/system-admin/support`)
