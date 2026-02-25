@@ -31,6 +31,29 @@ function isDirection(value: string): value is Direction {
   return ["outbound", "inbound", "internal"].includes(value);
 }
 
+function defaultDirectionForLedger(ledgerType: LedgerType): Direction {
+  if (ledgerType === "outbound") {
+    return "outbound";
+  }
+  if (ledgerType === "inbound") {
+    return "inbound";
+  }
+  return "internal";
+}
+
+function isLedgerDirectionCompatible(ledgerType: LedgerType, direction: Direction): boolean {
+  if (ledgerType === "outbound") {
+    return direction === "outbound";
+  }
+  if (ledgerType === "inbound") {
+    return direction === "inbound";
+  }
+  if (ledgerType === "instruction") {
+    return direction === "internal";
+  }
+  return true;
+}
+
 async function replaceAttachments(
   siteId: string,
   documentId: string,
@@ -203,6 +226,31 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       throw VALIDATION_ERROR("direction 값이 올바르지 않습니다.");
     }
 
+    const hasLedgerTypeUpdate = nextLedgerType !== undefined;
+    const hasDirectionUpdate = nextDirection !== undefined;
+
+    if (hasLedgerTypeUpdate || hasDirectionUpdate) {
+      const resolvedLedger: LedgerType = hasLedgerTypeUpdate
+        ? nextLedgerType
+        : (document.ledgerType as LedgerType);
+      const resolvedDirection: Direction = hasDirectionUpdate
+        ? (nextDirection as Direction)
+        : defaultDirectionForLedger(resolvedLedger);
+
+      if (!isLedgerDirectionCompatible(resolvedLedger, resolvedDirection)) {
+        throw VALIDATION_ERROR(
+          "ledgerType과 direction 조합이 올바르지 않습니다. (instruction=internal, outbound=outbound, inbound=inbound)",
+        );
+      }
+
+      if (hasLedgerTypeUpdate) {
+        document.ledgerType = resolvedLedger;
+      }
+      if (hasDirectionUpdate || hasLedgerTypeUpdate) {
+        document.direction = resolvedDirection;
+      }
+    }
+
     if (body.docNo !== undefined) {
       const nextDocNo = String(body.docNo ?? "").trim();
       if (!nextDocNo) {
@@ -217,12 +265,6 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       const nextContent = String(body.content ?? "").trim();
       assertNoUnsafeHtml(nextContent, "문서 내용");
       document.content = nextContent;
-    }
-    if (nextLedgerType !== undefined) {
-      document.ledgerType = nextLedgerType;
-    }
-    if (nextDirection !== undefined) {
-      document.direction = nextDirection;
     }
     if (nextStatus !== undefined) {
       document.status = nextStatus;

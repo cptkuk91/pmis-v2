@@ -57,7 +57,7 @@
 
 ### 2.2 문서관리 (`/design-docs/documents`)
 
-#### 문서작성 위저드 4단계 (`/design-docs/documents/wizard/[step]`)
+#### 문서 작성 플로우 4단계 (`/design-docs/documents/wizard/[step]`)
 
 | 단계 | 내용 |
 |------|------|
@@ -81,9 +81,8 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 
 #### 대장 조회
 
-- **수신문서 대장** (`/design-docs/documents/ledgers/inbound`): 외부로부터 수신한 문서 목록
-- **발신문서 대장** (`/design-docs/documents/ledgers/outbound`): 외부로 발송한 문서 목록
-- **지시문서 대장** (`/design-docs/documents/ledgers/instruction`): 업무 지시 문서 목록
+- **문서 수신/발신** (`/design-docs/documents/ledgers/correspondence`): 외부 수신/발신 문서 통합 목록
+- **업무지시** (`/design-docs/documents/ledgers/instruction`): 업무 지시 문서 목록
 - **문서검색** (`/design-docs/documents/search`): 문서번호, 제목, 내용, 발신처, 수신처, 분류코드 검색 가능
 
 #### 문서 부가 기능

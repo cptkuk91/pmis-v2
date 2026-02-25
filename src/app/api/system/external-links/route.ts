@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
 
     const filter =
       category === "general"
-        ? { isActive: true }
+        ? { category: "general", isActive: true }
         : { category, isActive: true };
 
     const items = await ExternalLinkItem.find(filter)

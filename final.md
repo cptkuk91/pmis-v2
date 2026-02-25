@@ -203,17 +203,16 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
 | ✅ 도면목록 | `/design-docs/design/drawings` | `GET/POST /api/drawings` | `drawings`, `file_assets` | `manager+` |
 | ✅ 설계변경현황 | `/design-docs/design/changes` | `GET/POST /api/design/changes` | `design_changes` | `manager+` |
 | ✅ 설계자료관리(트리) | `/design-docs/design/assets` | `GET/POST /api/design/assets` | `design_tree_nodes`, `design_assets` | `manager+` |
-| ✅ **문서작성 위저드** | `/design-docs/documents/wizard/[step]` | `POST /api/documents` | `documents`, `document_attachments`, `document_approval_lines` | `manager+` |
-| ✅ 업무지시서 | `/design-docs/documents/ledgers/instruction` | `GET /api/documents?ledger=instruction` | `documents` | `viewer+` |
-| ✅ 발송대장 | `/design-docs/documents/ledgers/outbound` | `GET /api/documents?direction=outbound` | `documents` | `viewer+` |
-| ✅ 접수대장 | `/design-docs/documents/ledgers/inbound` | `GET /api/documents?direction=inbound` | `documents` | `viewer+` |
+| ✅ **문서 작성 플로우** | `/design-docs/documents/wizard/[step]` | `POST /api/documents` | `documents`, `document_attachments`, `document_approval_lines` | `manager+` |
+| ✅ 업무지시 | `/design-docs/documents/ledgers/instruction` | `GET /api/documents?ledger=instruction` | `documents` | `viewer+` |
+| ✅ 문서 수신/발신 | `/design-docs/documents/ledgers/correspondence` | `GET /api/documents?direction=inbound|outbound` | `documents` | `viewer+` |
 | ✅ 문서검색 | `/design-docs/documents/search` | `GET /api/documents/search` | `documents` | `viewer+` |
 | ✅ 문서분류체계 | `/design-docs/documents/categories` | `GET/POST /api/documents/categories` | `document_categories` | `site_admin+` |
 | ✅ Document System | `/design-docs/documents/system` | `GET/POST /api/documents/system` | `document_system_items` | `manager+` |
 | ✅ 양식함 | `/design-docs/documents/templates` | `GET/POST /api/documents/templates` | `form_templates` | `manager+` |
 
 **1팀 Phase 3 핵심 워크플로우:**
-- 문서작성 위저드 4단계: 입력 → 첨부 → 결재선 선택 → 발송
+- 문서 작성 플로우 4단계: 입력 → 첨부 → 결재선 선택 → 발송
 - 도면 검토: 요청 → 검토 → 결과 통보 (승인/반려)
 - 설계자료: 트리 구조 네비게이션 + 파일 관리
 
@@ -242,7 +241,7 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
 
 #### Phase 3 공동 완료 기준
 
-- [x] 문서작성 위저드 E2E: 입력 → 첨부 → 결재선 → 발송 → 접수 대장 반영
+- [x] 문서 작성 플로우 E2E: 입력 → 첨부 → 결재선 → 발송 → 접수 대장 반영
 - [x] 도면 검토요청 → 결과 통보 → 승인/반려 플로우
 - [x] 자재공급원 승인요청 → 승인현황 반영
 - [x] 하도급 계약검토 → 검토대장 반영
@@ -294,7 +293,7 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
 | ✅ 무재해목표달성 | `quality-safety/safety/rewards/accident-free` | `GET/POST /api/safety/rewards` | `safety_rewards` | `manager+` |
 | ✅ 현장소장마일리지 | `quality-safety/safety/rewards/mileage` | `GET/POST /api/safety/mileage` | `safety_mileage_records` | `manager+` |
 | ✅ 점검체크리스트 | `quality-safety/safety/rewards/checklist` | `GET/POST /api/safety/checklists` | `safety_checklists` | `manager+` |
-| ✅ 안전법규 | `quality-safety/safety/laws` | `GET /api/safety/laws` | `external_link_items` | `viewer+` |
+| ✅ 안전법규 | `quality-safety/safety/laws` | `GET /api/system/external-links?category=laws` | `external_link_items` | `viewer+` |
 | ✅ 안전교육 | `quality-safety/safety/education/training` | `GET/POST /api/safety/education` | `safety_education_records` | `manager+` |
 | ✅ 보호구지급 | `quality-safety/safety/education/equipment` | `GET/POST /api/safety/ppe` | `ppe_distribution_records` | `manager+` |
 | ✅ 건강검진 | `quality-safety/safety/education/health` | `GET/POST /api/safety/health` | `health_check_records` | `manager+` |
@@ -409,7 +408,7 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
 
 | # | 시나리오 | 검증 포인트 |
 |---|---------|-----------|
-| 1 | 문서작성 위저드 → 결재 → 발송/접수 | 위저드 4단계 + 결재선 상태 + 대장 반영 |
+| 1 | 문서 작성 플로우 → 결재 → 발송/접수 | 플로우 4단계 + 결재선 상태 + 대장 반영 |
 | 2 | 도면 검토요청 → 검토결과 등록 | 요청/결과 분리 + 승인/반려 |
 | 3 | 하도급 계약검토 → 검토대장 반영 | 검토항목 11건 + 대장 자동 반영 |
 | 4 | 회의 등록 → 회의록 → 대시보드 반영 | CRUD + 위젯 집계 |

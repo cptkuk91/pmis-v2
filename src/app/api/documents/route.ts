@@ -39,6 +39,29 @@ function isDirection(value: string): value is Direction {
   return ["outbound", "inbound", "internal"].includes(value);
 }
 
+function defaultDirectionForLedger(ledgerType: LedgerType): Direction {
+  if (ledgerType === "outbound") {
+    return "outbound";
+  }
+  if (ledgerType === "inbound") {
+    return "inbound";
+  }
+  return "internal";
+}
+
+function isLedgerDirectionCompatible(ledgerType: LedgerType, direction: Direction): boolean {
+  if (ledgerType === "outbound") {
+    return direction === "outbound";
+  }
+  if (ledgerType === "inbound") {
+    return direction === "inbound";
+  }
+  if (ledgerType === "instruction") {
+    return direction === "internal";
+  }
+  return true;
+}
+
 async function generateDocNo(siteId: string): Promise<string> {
   const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   for (let index = 0; index < 6; index += 1) {
@@ -136,10 +159,26 @@ export async function POST(request: NextRequest) {
     assertNoUnsafeHtml(title, "문서 제목");
     assertNoUnsafeHtml(content, "문서 내용");
 
-    const ledgerInput = String(body.ledgerType ?? "general");
-    const ledgerType: LedgerType = isLedgerType(ledgerInput) ? ledgerInput : "general";
-    const directionInput = String(body.direction ?? "internal");
-    const direction: Direction = isDirection(directionInput) ? directionInput : "internal";
+    const ledgerInput = String(body.ledgerType ?? "general").trim();
+    if (!isLedgerType(ledgerInput)) {
+      throw VALIDATION_ERROR("ledgerType 값이 올바르지 않습니다.");
+    }
+    const ledgerType: LedgerType = ledgerInput;
+
+    const hasDirectionInput = body.direction !== undefined;
+    const directionInput = hasDirectionInput ? String(body.direction ?? "").trim() : "";
+    if (hasDirectionInput && (!directionInput || !isDirection(directionInput))) {
+      throw VALIDATION_ERROR("direction 값이 올바르지 않습니다.");
+    }
+    const direction: Direction = hasDirectionInput
+      ? (directionInput as Direction)
+      : defaultDirectionForLedger(ledgerType);
+
+    if (!isLedgerDirectionCompatible(ledgerType, direction)) {
+      throw VALIDATION_ERROR(
+        "ledgerType과 direction 조합이 올바르지 않습니다. (instruction=internal, outbound=outbound, inbound=inbound)",
+      );
+    }
     const statusInput = String(body.status ?? "draft");
     const status: Status = isStatus(statusInput) ? statusInput : "draft";
 
