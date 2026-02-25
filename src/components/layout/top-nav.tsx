@@ -9,7 +9,9 @@ const navItems = [
   { href: "/site-info", label: "현장 정보" },
   { href: "/progress", label: "공정 관리" },
   { href: "/resource-procurement", label: "자원·조달" },
-  { href: "/quality-safety", label: "품질·안전" },
+  { href: "/qa", label: "QA" },
+  { href: "/qc", label: "QC" },
+  { href: "/quality-safety", label: "안전" },
   { href: "/design-docs", label: "설계·문서" },
   { href: "/system-admin", label: "시스템 관리" },
 ];

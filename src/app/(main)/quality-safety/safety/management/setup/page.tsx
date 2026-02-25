@@ -51,11 +51,11 @@ export default function SafetyManagementSetupPage() {
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">개설시 (대관신고/선임)</h1>
+        <h1 className="text-xl font-semibold text-foreground">착수 준비 (인허가 신고/관리자 선임)</h1>
         <button type="button" onClick={() => setShowForm(!showForm)} className="rounded-md bg-[#ecebe8] px-4 py-1.5 text-sm font-medium text-foreground hover:bg-[#e2e0db]">{showForm ? "취소" : "등록"}</button>
       </div>
       <div className="flex gap-1 rounded-md border border-border bg-background-card p-1">
-        <button type="button" onClick={() => setTab("report")} className={`rounded-md px-4 py-1.5 text-sm transition-colors ${tab === "report" ? "bg-[#ecebe8] font-medium text-foreground" : "text-foreground-muted hover:bg-background-soft"}`}>대관신고</button>
+        <button type="button" onClick={() => setTab("report")} className={`rounded-md px-4 py-1.5 text-sm transition-colors ${tab === "report" ? "bg-[#ecebe8] font-medium text-foreground" : "text-foreground-muted hover:bg-background-soft"}`}>인허가 신고</button>
         <button type="button" onClick={() => setTab("assignment")} className={`rounded-md px-4 py-1.5 text-sm transition-colors ${tab === "assignment" ? "bg-[#ecebe8] font-medium text-foreground" : "text-foreground-muted hover:bg-background-soft"}`}>안전관리자 선임</button>
       </div>
       {showForm && tab === "report" && (

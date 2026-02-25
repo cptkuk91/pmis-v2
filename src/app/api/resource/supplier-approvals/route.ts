@@ -16,9 +16,13 @@ export async function GET(request: NextRequest) {
     const limit = Number(searchParams.get("limit") || "20");
     const skip = (page - 1) * limit;
 
+    const status = searchParams.get("status");
+    const filter: Record<string, unknown> = { siteId };
+    if (status) filter.status = status;
+
     const [data, total] = await Promise.all([
-      SupplierApprovalRequest.find({ siteId }).sort({ requestDate: -1 }).skip(skip).limit(limit),
-      SupplierApprovalRequest.countDocuments({ siteId }),
+      SupplierApprovalRequest.find(filter).sort({ requestDate: -1 }).skip(skip).limit(limit),
+      SupplierApprovalRequest.countDocuments(filter),
     ]);
     return paginated(data, page, limit, total);
   } catch (err) {

@@ -211,40 +211,47 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 
 - 현장 안전방침 문서를 등록하고 관리한다.
 
-#### 안전교육
+#### 교육/보건
 
 | 메뉴 | 경로 | 설명 |
 |------|------|------|
-| 안전교육 이수 | `/quality-safety/safety/education/training` | 안전교육 실시 기록 관리 |
-| 신규근로자 교육 | `/quality-safety/safety/education/new-worker` | 신규자 교육 이수 현황 |
-| 장비교육 | `/quality-safety/safety/education/equipment` | 중장비 교육 기록 |
-| 보건교육 | `/quality-safety/safety/education/health` | 보건 관련 교육 기록 |
+| 정기 교육 | `/quality-safety/safety/education/training` | 안전교육 실시 기록 관리 |
+| 신규자 온보딩 | `/quality-safety/safety/education/new-worker` | 신규자 교육 이수 현황 |
+| 보호구 지급 | `/quality-safety/safety/education/equipment` | 중장비 교육 기록 |
+| 건강 관리 | `/quality-safety/safety/education/health` | 보건 관련 교육 기록 |
 | 무재해 현황 | `/quality-safety/safety/education/accident-free` | 무재해 달성 현황 |
 
-#### 안전점검
+#### 운영 관리
 
 | 메뉴 | 경로 | 설명 |
 |------|------|------|
-| 안전관리 설정 | `/quality-safety/safety/management/setup` | 안전관리자 지정 |
-| 진행중 관리 | `/quality-safety/safety/management/ongoing` | 진행 중인 안전 관리 현황 |
-| 완료 관리 | `/quality-safety/safety/management/completion` | 완료된 안전 조치 현황 |
+| 착수 준비 | `/quality-safety/safety/management/setup` | 인허가 신고 및 안전관리자 지정 |
+| 운영 리포트 | `/quality-safety/safety/management/ongoing` | 진행 중인 상황 보고/운영비 기록 |
+| 사고/조치 이력 | `/quality-safety/safety/management/completion` | 사고 및 조치 이력 관리 |
+
+#### 계획/점검
+
+| 메뉴 | 경로 | 설명 |
+|------|------|------|
 | 위험성 평가 | `/quality-safety/safety/standards/hazard` | 위험성 평가 기록 |
-| 안전관리 계획 | `/quality-safety/safety/standards/plan` | 안전관리 계획서 |
-| 협력사 관리 | `/quality-safety/safety/standards/partner` | 협력업체 안전 관리 |
+| 안전 실행계획 | `/quality-safety/safety/standards/plan` | 안전관리 계획서 |
+| 협력사 안전계획 | `/quality-safety/safety/standards/partner` | 협력업체 안전 관리 |
+| 점검 체크리스트 | `/quality-safety/safety/rewards/checklist` | 안전 점검 체크리스트 |
 
-#### 무재해 및 포상
+#### 성과/시설
 
 | 메뉴 | 경로 | 설명 |
 |------|------|------|
-| 무재해 포상 | `/quality-safety/safety/rewards/accident-free` | 무재해 달성 포상 관리 |
-| 안전 체크리스트 | `/quality-safety/safety/rewards/checklist` | 안전 점검 체크리스트 |
-| 마일리지 | `/quality-safety/safety/rewards/mileage` | 안전 마일리지 적립 현황 |
+| 무재해 인센티브 | `/quality-safety/safety/rewards/accident-free` | 무재해 달성 포상 관리 |
+| 안전 포인트 | `/quality-safety/safety/rewards/mileage` | 안전 마일리지 적립 현황 |
+| 표준 시설 | `/quality-safety/safety/facilities/standard` | 표준 안전시설물 정보 |
+| 우수 사례 | `/quality-safety/safety/facilities/excellent` | 우수 안전시설물 정보 |
 
-#### 기타
+#### 정책/규정
 
-- **안전시설물** (`/quality-safety/safety/facilities/standard`, `/quality-safety/safety/facilities/excellent`)
-- **안전규정** (`/quality-safety/safety/regulations`)
-- **안전관계법령** (`/quality-safety/safety/laws`)
+- **안전 정책** (`/quality-safety/safety/policies`)
+- **안전 규정** (`/quality-safety/safety/regulations`)
+- **법령/가이드** (`/quality-safety/safety/laws`)
 
 ---
 

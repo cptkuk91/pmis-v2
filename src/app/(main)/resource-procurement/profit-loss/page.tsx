@@ -25,7 +25,7 @@ export default function ProfitLossPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  if (!cost) return <section className="space-y-4"><h1 className="text-xl font-semibold text-foreground">매출손익</h1><p className="text-sm text-foreground-muted">데이터를 불러오는 중...</p></section>;
+  if (!cost) return <section className="space-y-4"><h1 className="text-xl font-semibold text-foreground">원가 분석</h1><p className="text-sm text-foreground-muted">데이터를 불러오는 중...</p></section>;
 
   const totalPlan = cost.material.planTotal + cost.equipment.planTotal;
   const totalActual = cost.material.actualTotal + cost.equipment.actualTotal + cost.subcontract;
@@ -33,7 +33,7 @@ export default function ProfitLossPage() {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-xl font-semibold text-foreground">매출손익</h1>
+      <h1 className="text-xl font-semibold text-foreground">원가 분석</h1>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="rounded-lg border border-border bg-background-card p-4">
           <p className="text-sm text-foreground-muted">총 계획금액</p>

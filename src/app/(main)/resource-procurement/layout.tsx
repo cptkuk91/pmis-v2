@@ -5,47 +5,35 @@ import { usePathname } from "next/navigation";
 
 const menuGroups = [
   {
-    label: "자재/장비",
+    label: "자재·장비",
     items: [
-      { href: "/resource-procurement/materials/plan-actual", label: "자재 계획/실적" },
-      { href: "/resource-procurement/equipment/plan-actual", label: "장비 계획/실적" },
+      { href: "/resource-procurement/materials/plan-actual", label: "자재 현황" },
+      { href: "/resource-procurement/equipment/plan-actual", label: "장비 현황" },
     ],
   },
   {
-    label: "자재공급원",
+    label: "업체 승인",
     items: [
-      { href: "/resource-procurement/supplier-approvals/requests", label: "승인요청" },
-      { href: "/resource-procurement/supplier-approvals/status", label: "승인현황" },
-    ],
-  },
-  {
-    label: "반입검수",
-    items: [
-      { href: "/resource-procurement/material-inspections/requests", label: "검수요청" },
-      { href: "/resource-procurement/material-inspections/register", label: "검수등록" },
-      { href: "/resource-procurement/material-inspections/ledger", label: "검수대장" },
+      { href: "/resource-procurement/supplier-approvals", label: "업체 승인" },
     ],
   },
   {
     label: "인력관리",
     items: [
-      { href: "/resource-procurement/workforce/daily", label: "일일출역" },
-      { href: "/resource-procurement/workforce/roster", label: "연명부" },
-      { href: "/resource-procurement/workforce/summary", label: "집계" },
-      { href: "/resource-procurement/workforce/analysis", label: "분석" },
+      { href: "/resource-procurement/workforce/daily", label: "일일 근태" },
+      { href: "/resource-procurement/workforce/statistics", label: "근태 통계" },
     ],
   },
   {
-    label: "하도급",
+    label: "협력사",
     items: [
-      { href: "/resource-procurement/subcontract/reviews/new", label: "검토요청" },
-      { href: "/resource-procurement/subcontract/review-ledger", label: "검토대장" },
+      { href: "/resource-procurement/subcontract", label: "협력사 관리" },
     ],
   },
   {
-    label: "손익",
+    label: "원가",
     items: [
-      { href: "/resource-procurement/profit-loss", label: "매출손익" },
+      { href: "/resource-procurement/profit-loss", label: "원가 분석" },
     ],
   },
 ];

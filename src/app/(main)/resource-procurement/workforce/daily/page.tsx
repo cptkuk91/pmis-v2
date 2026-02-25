@@ -93,7 +93,7 @@ export default function WorkforceDailyPage() {
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <h1 className="text-xl font-semibold text-foreground">일일출역집계</h1>
+        <h1 className="text-xl font-semibold text-foreground">일일 근태</h1>
         <div className="flex flex-wrap items-center gap-2">
           <input type="date" className="h-9 rounded-md border border-border px-3 text-sm" value={date} onChange={(e) => { setDate(e.target.value); setPage(1); }} />
           <button type="button" onClick={() => void handleWisSync()} className="rounded-md border border-border bg-background-soft px-4 py-1.5 text-sm font-medium text-foreground hover:bg-background-card">

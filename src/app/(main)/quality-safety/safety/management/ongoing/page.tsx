@@ -14,7 +14,7 @@ type Row = {
 };
 
 const SITE_ID_KEY = "pmis:siteId";
-const typeLabel: Record<string, string> = { situation: "상황보고", cost: "관리비" };
+const typeLabel: Record<string, string> = { situation: "상황 보고", cost: "운영비" };
 
 const columns: DataTableColumn<Row>[] = [
   { key: "reportType", header: "유형", className: "w-24", render: (_v, row) => typeLabel[row.reportType] ?? row.reportType },
@@ -49,7 +49,7 @@ export default function SafetyManagementOngoingPage() {
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">진행중 (상황보고/관리비)</h1>
+        <h1 className="text-xl font-semibold text-foreground">운영 리포트 (상황 보고/운영비)</h1>
         <button type="button" onClick={() => setShowForm(!showForm)} className="rounded-md bg-[#ecebe8] px-4 py-1.5 text-sm font-medium text-foreground hover:bg-[#e2e0db]">{showForm ? "취소" : "등록"}</button>
       </div>
 
@@ -59,8 +59,8 @@ export default function SafetyManagementOngoingPage() {
             <div className="space-y-1">
               <label className="block text-sm font-medium text-foreground">유형 *</label>
               <select className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.reportType} onChange={(e) => setForm({ ...form, reportType: e.target.value })}>
-                <option value="situation">상황보고</option>
-                <option value="cost">관리비</option>
+                <option value="situation">상황 보고</option>
+                <option value="cost">운영비</option>
               </select>
             </div>
             <div className="space-y-1"><label className="block text-sm font-medium text-foreground">제목 *</label><input className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
