@@ -145,13 +145,22 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
 | ✅ 회의록 | `/system-admin/common/minutes` | `PATCH /api/meetings/:id/minutes` | `meetings` | `manager+` |
 | ✅ ISSUE | `/system-admin/common/issues` | `GET/POST /api/issues` | `issues` | `manager+` |
 | ✅ 자료실 | `/system-admin/common/library` | `GET/POST /api/library` | `resource_library_items` | `manager+` |
-| ✅ 법률/KS/전문사이트 | `/system-admin/common/law-info`, `ks-info`, `pro-sites` | `GET /api/system/external-links` | `external_link_items` | `viewer+` |
+| ✅ 외부사이트 | `/system-admin/common/external-sites` | `GET /api/system/external-links` | `external_link_items` | `viewer+` |
 | ✅ 코드관리(관련사) | `/system-admin/codes/partners` | `GET/POST /api/system/codes/partners` | `code_groups`, `code_items` | `site_admin+` |
 | ✅ 코드관리(자재/장비) | `/system-admin/codes/materials`, `equipment` | `GET/POST/PATCH/DELETE /api/system/codes/*` | `code_groups`, `code_items` | `site_admin+` |
 | ✅ 사용자-현장 매핑 | `/system-admin/site-memberships` | `GET/POST/PATCH /api/system/site-memberships*` | `site_memberships`, `users`, `sites` | `super_admin` |
 
 **1팀 Phase 2 DB 모델:**
 `notices`, `meetings`, `meeting_attendees`, `issues`, `resource_library_items`, `external_link_items`
+
+**외부사이트 통합 상세(법률정보/KS/전문사이트):**
+- `model`: `ExternalLinkItem` (`src/models/ExternalLinkItem.ts`)
+- `type`: `ExternalLinksView` 내 `ExternalLinkItem` + `category` 유니온(`laws | ks | pro-sites`)
+- `action`: 별도 action 레이어 없음(클라이언트 `fetch` 직접 호출)
+- `api`: `GET /api/system/external-links` (`category`: `laws | ks | pro-sites`)
+- `collection`: `external_link_items` (단일 컬렉션)
+- `field`: `siteId`, `category`, `name`, `url`, `description`, `sortOrder`, `isActive`, `createdBy`, `updatedBy`, `isDeleted`, `deletedAt`, `createdAt`, `updatedAt`
+- `route`: `/system-admin/common/external-sites`
 
 #### 2팀 — 현장 정보
 

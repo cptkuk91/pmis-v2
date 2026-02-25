@@ -420,9 +420,7 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 
 | 메뉴 | 경로 | 설명 |
 |------|------|------|
-| 법령정보 | `/system-admin/common/law-info` | 관련 법령 정보 등록 |
-| KS 정보 | `/system-admin/common/ks-info` | KS 표준 정보 등록 |
-| 관련현장 | `/system-admin/common/pro-sites` | 관련 프로젝트 현장 연결 |
+| 외부사이트 | `/system-admin/common/external-sites` | 법령정보/KS/전문사이트 외부 링크 통합 조회 |
 | 회의관리 | `/system-admin/common/meetings` | 전체 회의 관리 |
 | 이슈관리 | `/system-admin/common/issues` | 현장 이슈 등록 및 추적 |
 | 자료실 | `/system-admin/common/library` | 공용 자료실 관리 |
@@ -440,8 +438,7 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 
 | 메뉴 | 경로 | 설명 |
 |------|------|------|
-| FAQ 탭 | `/system-admin/support?tab=faq` | 자주 묻는 질문 조회 |
-| 지원티켓 탭 | `/system-admin/support?tab=tickets` | 사용자 문의 및 지원 요청 관리 |
+| Support (탭 통합) | `/system-admin/support?tab=faq|tickets` | FAQ 조회 + 사용자 문의/지원 요청 관리 |
 
 ### 보안 설정
 

@@ -15,9 +15,10 @@ type Props = {
   title: string;
   category: "laws" | "ks" | "pro-sites";
   description: string;
+  showHeader?: boolean;
 };
 
-export function ExternalLinksView({ title, category, description }: Props) {
+export function ExternalLinksView({ title, category, description, showHeader = true }: Props) {
   const [items, setItems] = useState<ExternalLinkItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,10 +52,12 @@ export function ExternalLinksView({ title, category, description }: Props) {
 
   return (
     <section className="space-y-4 rounded-xl border border-border bg-background-card p-6 shadow-[var(--shadow-soft)]">
-      <header>
-        <h1 className="text-xl font-semibold text-foreground">{title}</h1>
-        <p className="mt-1 text-sm text-foreground-muted">{description}</p>
-      </header>
+      {showHeader ? (
+        <header>
+          <h1 className="text-xl font-semibold text-foreground">{title}</h1>
+          <p className="mt-1 text-sm text-foreground-muted">{description}</p>
+        </header>
+      ) : null}
 
       {error ? <p className="text-sm text-danger">{error}</p> : null}
 
