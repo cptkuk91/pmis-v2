@@ -125,39 +125,33 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 
 ### 2.4 공정관리 (`/progress`)
 
-#### 공정 보고서 (`/progress/reports`)
+#### 진행 개요 (`/progress`)
 
-- 일간/주간/월간 공정 보고서를 작성하고 조회한다.
+- 공정관리 핵심 지표(리포트, 일정, 지연 작업)를 통합 조회한다.
+
+#### 현장 리포트 (`/progress/reports`)
+
 - 보고서에는 금일/금주 실적, 차기 계획, 문제점 및 조치사항을 포함한다.
+- 현장 사진은 별도 메뉴가 아닌 보고서 첨부로 업로드/관리한다.
 
-#### 공정표 (마스터 스케줄) (`/progress/master-schedule`)
+#### 안전 일지 (`/quality-safety/safety/management/daily-log`)
+
+- 안전팀이 안전 일지를 작성하고 현장소장 확인용으로 관리한다.
+
+#### 공정 추적 (`/progress/master-schedule`, `/progress/comparison`)
 
 - 전체 공사 공정표를 관리한다.
 - 공종별 시작일/종료일, 진행률을 입력하고 추적한다.
+- 공정 추적 화면에서 `공정표`와 `진도 분석`을 탭으로 전환해 사용한다.
 - `ScheduleItem` 모델 기반으로 공정 데이터를 관리한다.
 
-#### S-Curve (계획 대 실적 비교) (`/progress/comparison`)
-
-- 계획 공정률과 실적 공정률을 S-Curve 그래프로 비교 표시한다.
-- 월별 누적 데이터를 기반으로 차트를 렌더링한다 (Recharts 사용).
-
-#### 캘린더 (`/progress/calendar`)
+#### 일정 캘린더 (`/progress/calendar`)
 
 - 현장 일정을 캘린더 뷰로 확인한다.
 - `ProjectCalendarEvent` 모델로 이벤트를 관리한다.
 - 일정 등록, 수정, 삭제가 가능하다.
 
-#### 공사사진 (`/progress/photos`)
-
-- 공종별/일자별 현장 사진을 등록하고 관리한다.
-- 사진 업로드 시 촬영일자, 공종, 설명을 입력한다.
-- `ProgressPhoto` 모델로 사진 메타데이터를 관리한다.
-
-#### 일일 안전일지 (`/progress/daily-safety-log`)
-
-- 일일 안전 관련 기록을 등록하고 조회한다.
-
-#### 날씨 정보 (`/progress/weather`)
+#### 현장 날씨 (`/progress/weather`)
 
 - Open-Meteo API 연동으로 현장 위치의 기상 데이터를 조회한다.
 - `WeatherSnapshot` 모델에 동기화된 기상 데이터가 저장된다.
@@ -205,7 +199,19 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 
 ---
 
-### 2.6 품질안전 (`/quality-safety`)
+### 2.6 QA/QC/안전 (`/qa`, `/qc`, `/quality-safety`)
+
+#### QA (`/qa`)
+
+- 품질보증(QA) 메뉴는 구성 완료 상태이며 화면은 단계적으로 구현 중이다.
+- 현재 각 메뉴 진입 시 우선 구현 항목과 로드맵을 확인할 수 있다.
+
+#### QC (`/qc`)
+
+- 품질관리(QC) 메뉴는 구성 완료 상태이며 일부 화면부터 우선 구현 중이다.
+- 현재 `자재 검사` 화면을 우선 적용했고, 나머지 메뉴는 단계적으로 구현한다.
+
+#### 안전 (`/quality-safety`)
 
 #### 안전방침 (`/quality-safety/safety/policies`)
 
@@ -430,7 +436,7 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 | 회의관리 | `/system-admin/common/meetings` | 전체 회의 관리 |
 | 이슈관리 | `/system-admin/common/issues` | 현장 이슈 등록 및 추적 |
 | 자료실 | `/system-admin/common/library` | 공용 자료실 관리 |
-| 회의록 | `/system-admin/common/minutes` | 회의록 관리 |
+| 회의/회의록 | `/system-admin/common/meetings?tab=meetings|minutes` | 회의 개최/회의록 통합 관리 |
 | 사용자-현장 매핑 | `/system-admin/site-memberships` | 가입 사용자(`users`)를 현장(`sites`)에 권한과 함께 배정/해제 |
 
 ### 외부 연계 (`/system-admin/integrations`)

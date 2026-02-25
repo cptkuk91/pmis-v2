@@ -4,13 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const subMenus = [
-  { href: "/site-info/overview", label: "공사개요" },
-  { href: "/site-info/history", label: "사업연혁" },
-  { href: "/site-info/people", label: "인원정보" },
-  { href: "/site-info/construction-plans", label: "시공계획" },
-  { href: "/site-info/specifications", label: "시방서" },
-  { href: "/site-info/methods", label: "주요공법" },
-  { href: "/site-info/visitors", label: "방문자현황" },
+  { href: "/site-info/overview", label: "현장 개요" },
+  { href: "/site-info/people", label: "관계자 현황" },
+  { href: "/site-info/technical-docs", label: "기술 문서" },
+  { href: "/site-info/visitors", label: "방문자 관리" },
 ];
 
 export default function SiteInfoLayout({

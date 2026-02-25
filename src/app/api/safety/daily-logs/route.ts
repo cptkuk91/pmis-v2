@@ -4,8 +4,9 @@ import { paginated, success } from "@/lib/api-response";
 import { ApiError, handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
-import ProgressPhoto from "@/models/ProgressPhoto";
+import DailySafetyLog from "@/models/DailySafetyLog";
 import { logCreate } from "@/lib/audit-logger";
+import type { Status } from "@/types";
 
 function parsePositiveInt(rawValue: string | null, fallback: number, max = 100): number {
   const parsed = Number(rawValue ?? String(fallback));
@@ -19,22 +20,8 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function parseDate(rawValue: string | null): Date | null {
-  if (!rawValue) {
-    return null;
-  }
-  const parsed = new Date(rawValue);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-  return parsed;
-}
-
-function clampProgress(value: number): number {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-  return Math.max(0, Math.min(100, value));
+function isStatus(value: string): value is Status {
+  return ["draft", "in_review", "approved", "rejected", "completed"].includes(value);
 }
 
 export async function GET(request: NextRequest) {
@@ -48,40 +35,23 @@ export async function GET(request: NextRequest) {
     }
 
     const page = parsePositiveInt(request.nextUrl.searchParams.get("page"), 1);
-    const limit = parsePositiveInt(request.nextUrl.searchParams.get("limit"), 20, 200);
+    const limit = parsePositiveInt(request.nextUrl.searchParams.get("limit"), 20);
     const keyword = String(request.nextUrl.searchParams.get("q") ?? "").trim();
-    const fromDate = parseDate(request.nextUrl.searchParams.get("from"));
-    const toDate = parseDate(request.nextUrl.searchParams.get("to"));
+    const status = String(request.nextUrl.searchParams.get("status") ?? "all").trim();
     const skip = (page - 1) * limit;
 
     const filter: Record<string, unknown> = { siteId };
     if (keyword) {
       const regex = new RegExp(escapeRegex(keyword), "i");
-      filter.$or = [
-        { title: regex },
-        { location: regex },
-        { description: regex },
-        { uploadedByName: regex },
-      ];
+      filter.$or = [{ weather: regex }, { hazards: regex }, { actions: regex }, { notes: regex }];
     }
-    if (fromDate || toDate) {
-      const shotDateFilter: Record<string, Date> = {};
-      if (fromDate) {
-        shotDateFilter.$gte = fromDate;
-      }
-      if (toDate) {
-        shotDateFilter.$lte = toDate;
-      }
-      filter.shotDate = shotDateFilter;
+    if (status !== "all" && isStatus(status)) {
+      filter.status = status;
     }
 
     const [items, total] = await Promise.all([
-      ProgressPhoto.find(filter)
-        .sort({ shotDate: -1, createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      ProgressPhoto.countDocuments(filter),
+      DailySafetyLog.find(filter).sort({ logDate: -1, createdAt: -1 }).skip(skip).limit(limit).lean(),
+      DailySafetyLog.countDocuments(filter),
     ]);
 
     return paginated(items, page, limit, total);
@@ -101,29 +71,30 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as Record<string, unknown>;
-    const title = String(body.title ?? "").trim();
-    if (!title) {
-      throw VALIDATION_ERROR("title은 필수입니다.");
+    const logDate = body.logDate ? new Date(String(body.logDate)) : new Date();
+    if (Number.isNaN(logDate.getTime())) {
+      throw VALIDATION_ERROR("logDate 형식이 올바르지 않습니다.");
     }
 
-    const shotDate = new Date(String(body.shotDate ?? ""));
-    if (Number.isNaN(shotDate.getTime())) {
-      throw VALIDATION_ERROR("shotDate 형식이 올바르지 않습니다.");
-    }
+    const statusInput = String(body.status ?? "draft");
+    const status: Status = isStatus(statusInput) ? statusInput : "draft";
+    const workersCount = Number(body.workersCount ?? 0);
 
-    const created = await ProgressPhoto.create({
+    const created = await DailySafetyLog.create({
       siteId,
-      title,
-      shotDate,
-      location: String(body.location ?? "").trim(),
-      description: String(body.description ?? "").trim(),
-      progressRate: clampProgress(Number(body.progressRate ?? 0)),
-      uploadedByName: String(body.uploadedByName ?? requester.userName).trim(),
+      logDate,
+      weather: String(body.weather ?? "").trim(),
+      workersCount: Number.isFinite(workersCount) ? Math.max(0, workersCount) : 0,
+      hazards: String(body.hazards ?? "").trim(),
+      actions: String(body.actions ?? "").trim(),
+      notes: String(body.notes ?? "").trim(),
+      managerName: String(body.managerName ?? requester.userName).trim(),
+      status,
       createdBy: requester.userId ?? undefined,
       updatedBy: requester.userId ?? undefined,
     });
 
-    await logCreate(String(siteId), "progress_photo", String(created._id), requester);
+    await logCreate(String(siteId), "daily_safety_log", String(created._id), requester);
     return success(created);
   } catch (err) {
     return handleApiError(err);

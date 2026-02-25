@@ -33,11 +33,6 @@ export function SideBar() {
             </Link>
           </li>
           <li>
-            <Link href="/system-admin/integrations/wis" className="hover:text-foreground">
-              WIS 연동
-            </Link>
-          </li>
-          <li>
             <Link href="/system-admin/integrations/dis" className="hover:text-foreground">
               DIS 연계
             </Link>

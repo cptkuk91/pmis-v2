@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -61,6 +63,8 @@ const emptySummary: ComparisonSummary = {
 };
 
 export default function ProgressComparisonPage() {
+  const pathname = usePathname();
+  const isComparisonActive = pathname.startsWith("/progress/comparison");
   const [summary, setSummary] = useState<ComparisonSummary>(emptySummary);
   const [curve, setCurve] = useState<CurvePoint[]>([]);
   const [items, setItems] = useState<ComparisonItem[]>([]);
@@ -104,7 +108,7 @@ export default function ProgressComparisonPage() {
     <section className="space-y-4 rounded-xl border border-border bg-background-card p-6 shadow-[var(--shadow-soft)]">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">실적대비 (S-Curve)</h1>
+          <h1 className="text-xl font-semibold text-foreground">진도 분석</h1>
           <p className="mt-1 text-sm text-foreground-muted">누적 계획 대비 실적 곡선을 비교하고 지연 항목을 추적합니다.</p>
         </div>
         <button
@@ -115,6 +119,29 @@ export default function ProgressComparisonPage() {
           새로고침
         </button>
       </header>
+
+      <nav className="flex flex-wrap gap-1 rounded-lg border border-border bg-background-soft p-1">
+        <Link
+          href="/progress/master-schedule"
+          className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+            !isComparisonActive
+              ? "bg-[#ecebe8] font-medium text-foreground"
+              : "text-foreground-muted hover:bg-background-card hover:text-foreground"
+          }`}
+        >
+          공정표
+        </Link>
+        <Link
+          href="/progress/comparison"
+          className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+            isComparisonActive
+              ? "bg-[#ecebe8] font-medium text-foreground"
+              : "text-foreground-muted hover:bg-background-card hover:text-foreground"
+          }`}
+        >
+          진도 분석
+        </Link>
+      </nav>
 
       {error ? <p className="text-sm text-danger">{error}</p> : null}
 

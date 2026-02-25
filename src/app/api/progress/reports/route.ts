@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import { paginated, success } from "@/lib/api-response";
 import { ApiError, handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
@@ -91,6 +92,20 @@ export async function POST(request: NextRequest) {
     const status: Status = isStatus(statusInput) ? statusInput : "draft";
     const progressRateValue = Number(body.progressRate ?? 0);
     const progressRate = Number.isFinite(progressRateValue) ? Math.max(0, Math.min(100, progressRateValue)) : 0;
+    const attachments = Array.isArray(body.attachments) ? body.attachments : [];
+    const normalizedAttachments = attachments
+      .filter((row): row is Record<string, unknown> => typeof row === "object" && row !== null)
+      .map((row, index) => ({
+        fileAssetId: String(row.fileAssetId ?? "").trim(),
+        fileName: String(row.fileName ?? "").trim(),
+        sortOrder: Number(row.sortOrder ?? index),
+      }))
+      .filter((row) => row.fileAssetId && mongoose.Types.ObjectId.isValid(row.fileAssetId))
+      .map((row, index) => ({
+        fileAssetId: new mongoose.Types.ObjectId(row.fileAssetId),
+        fileName: row.fileName || row.fileAssetId,
+        sortOrder: Number.isFinite(row.sortOrder) ? Math.floor(row.sortOrder) : index,
+      }));
 
     const created = await Report.create({
       siteId,
@@ -100,6 +115,7 @@ export async function POST(request: NextRequest) {
       authorName: String(body.authorName ?? requester.userName).trim(),
       content: String(body.content ?? "").trim(),
       progressRate,
+      attachments: normalizedAttachments,
       status,
       createdBy: requester.userId ?? undefined,
       updatedBy: requester.userId ?? undefined,

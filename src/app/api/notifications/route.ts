@@ -23,9 +23,6 @@ type NotificationItem = {
 };
 
 function resolveSyncHref(sourceSystem: string): string {
-  if (sourceSystem === "wis") {
-    return "/system-admin/integrations/wis";
-  }
   if (sourceSystem === "dis") {
     return "/system-admin/integrations/dis";
   }

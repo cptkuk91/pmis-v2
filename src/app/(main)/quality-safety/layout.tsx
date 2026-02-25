@@ -27,6 +27,7 @@ const menuGroups = [
     id: "operation",
     label: "운영 관리",
     items: [
+      { href: "/quality-safety/safety/management/daily-log", label: "안전 일지" },
       { href: "/quality-safety/safety/management/setup", label: "착수 준비" },
       { href: "/quality-safety/safety/management/ongoing", label: "운영 리포트" },
       { href: "/quality-safety/safety/management/completion", label: "사고/조치 이력" },

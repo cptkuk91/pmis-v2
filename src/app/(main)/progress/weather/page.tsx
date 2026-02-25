@@ -65,7 +65,7 @@ export default function ProgressWeatherPage() {
       const response = await fetch(`/api/progress/weather?days=${nextDays}`, { cache: "no-store" });
       const result = (await response.json()) as WeatherResponse;
       if (!result.ok) {
-        throw new Error(result.error ?? "기상자료 조회 실패");
+        throw new Error(result.error ?? "현장 날씨 조회 실패");
       }
       setItems(result.data);
       setProvider(result.meta?.provider ?? "-");
@@ -73,7 +73,7 @@ export default function ProgressWeatherPage() {
       setSiteAddress(result.meta?.siteAddress || "-");
       setResolvedAddress(result.meta?.resolvedAddress || "-");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "기상자료 조회 실패");
+      setError(err instanceof Error ? err.message : "현장 날씨 조회 실패");
       setItems([]);
       setProvider("-");
       setSiteName("-");
@@ -132,7 +132,7 @@ export default function ProgressWeatherPage() {
     <section className="space-y-4 rounded-xl border border-border bg-background-card p-6 shadow-[var(--shadow-soft)]">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">기상자료</h1>
+          <h1 className="text-xl font-semibold text-foreground">현장 날씨</h1>
           <p className="mt-1 text-sm text-foreground-muted">현장 기온/강수/풍속을 조회하고 공정 영향도를 확인합니다.</p>
           <div className="mt-2 space-y-0.5 text-xs text-foreground-muted">
             <p>

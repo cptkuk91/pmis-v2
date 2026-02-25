@@ -137,7 +137,7 @@ export default function ProgressCalendarPage() {
   return (
     <section className="space-y-4 rounded-xl border border-border bg-background-card p-6 shadow-[var(--shadow-soft)]">
       <header>
-        <h1 className="text-xl font-semibold text-foreground">Project Calendar</h1>
+        <h1 className="text-xl font-semibold text-foreground">일정 캘린더</h1>
         <p className="mt-1 text-sm text-foreground-muted">월별 공정 이벤트와 현장 일정을 조회/등록합니다.</p>
       </header>
 

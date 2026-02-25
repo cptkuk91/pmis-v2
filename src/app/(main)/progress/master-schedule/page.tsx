@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DataTable, FormInput, Pagination } from "@/components/ui";
 import { hasMinRole, useCurrentUser } from "@/hooks/use-current-user";
@@ -43,6 +45,8 @@ function diffDays(start: Date, end: Date): number {
 }
 
 export default function MasterSchedulePage() {
+  const pathname = usePathname();
+  const isComparisonActive = pathname.startsWith("/progress/comparison");
   const { user, isLoading: isUserLoading } = useCurrentUser();
   const canWrite = useMemo(() => hasMinRole(user.role, "manager"), [user.role]);
 
@@ -183,9 +187,32 @@ export default function MasterSchedulePage() {
   return (
     <section className="space-y-4 rounded-xl border border-border bg-background-card p-6 shadow-[var(--shadow-soft)]">
       <header>
-        <h1 className="text-xl font-semibold text-foreground">Master/주간 공정표</h1>
+        <h1 className="text-xl font-semibold text-foreground">공정 추적</h1>
         <p className="mt-1 text-sm text-foreground-muted">공정 항목의 계획/실적 진도율을 입력하고 지연 여부를 확인합니다.</p>
       </header>
+
+      <nav className="flex flex-wrap gap-1 rounded-lg border border-border bg-background-soft p-1">
+        <Link
+          href="/progress/master-schedule"
+          className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+            !isComparisonActive
+              ? "bg-[#ecebe8] font-medium text-foreground"
+              : "text-foreground-muted hover:bg-background-card hover:text-foreground"
+          }`}
+        >
+          공정표
+        </Link>
+        <Link
+          href="/progress/comparison"
+          className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
+            isComparisonActive
+              ? "bg-[#ecebe8] font-medium text-foreground"
+              : "text-foreground-muted hover:bg-background-card hover:text-foreground"
+          }`}
+        >
+          진도 분석
+        </Link>
+      </nav>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_220px_auto]">
         <FormInput

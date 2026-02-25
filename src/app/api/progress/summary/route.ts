@@ -8,7 +8,6 @@ import Report from "@/models/Report";
 import DailySafetyLog from "@/models/DailySafetyLog";
 import ScheduleItem from "@/models/ScheduleItem";
 import ProjectCalendarEvent from "@/models/ProjectCalendarEvent";
-import ProgressPhoto from "@/models/ProgressPhoto";
 
 export async function GET() {
   try {
@@ -22,20 +21,18 @@ export async function GET() {
         safetyLogs: 0,
         scheduleItems: 0,
         calendarEvents: 0,
-        progressPhotos: 0,
         delayedTasks: 0,
         averageActualProgress: 0,
       });
     }
 
     const today = new Date();
-    const [reports, safetyLogs, scheduleItems, calendarEvents, progressPhotos, delayedTasks, progressAgg] =
+    const [reports, safetyLogs, scheduleItems, calendarEvents, delayedTasks, progressAgg] =
       await Promise.all([
         Report.countDocuments({ siteId }),
         DailySafetyLog.countDocuments({ siteId }),
         ScheduleItem.countDocuments({ siteId }),
         ProjectCalendarEvent.countDocuments({ siteId }),
-        ProgressPhoto.countDocuments({ siteId }),
         ScheduleItem.countDocuments({
           siteId,
           plannedEnd: { $lt: today },
@@ -52,7 +49,6 @@ export async function GET() {
       safetyLogs,
       scheduleItems,
       calendarEvents,
-      progressPhotos,
       delayedTasks,
       averageActualProgress: Math.round(progressAgg[0]?.avgProgress ?? 0),
     });

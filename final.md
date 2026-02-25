@@ -67,7 +67,7 @@
 | DB 모델, API 공통, 파일 업로드 | — | ★★★ |
 | 현장 정보 | 10 | ★★ |
 | 자원·조달 | 16 | ★★★ |
-| 품질·안전 | 20 | ★★ |
+| QA/QC/안전 | 20 | ★★ |
 | **합계** | **46** | |
 
 > 2팀이 페이지 수 많지만 CRUD 비중이 높아 난이도 균형 맞음
@@ -141,8 +141,7 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
 | ✅ 공지사항 | `/dashboard/notices` | `GET/POST /api/dashboard/notices` | `notices` | 조회 `viewer+`, 등록 `manager+` |
 | ✅ 금일회의 | `/dashboard/meetings` | `GET /api/meetings` | `meetings`, `meeting_attendees` | `viewer+` |
 | ✅ 미결문서 | `/dashboard/pending-docs` | `GET /api/documents/pending` | `documents`, `document_approval_lines` | `manager+` |
-| ✅ 회의개최현황 | `/system-admin/common/meetings` | `GET/POST /api/meetings` | `meetings`, `meeting_attendees` | `manager+` |
-| ✅ 회의록 | `/system-admin/common/minutes` | `PATCH /api/meetings/:id/minutes` | `meetings` | `manager+` |
+| ✅ 회의/회의록 | `/system-admin/common/meetings?tab=meetings|minutes` | `GET/POST/PATCH/DELETE /api/meetings`, `PATCH /api/meetings/:id/minutes` | `meetings`, `meeting_attendees` | `manager+` |
 | ✅ ISSUE | `/system-admin/common/issues` | `GET/POST /api/issues` | `issues` | `manager+` |
 | ✅ 자료실 | `/system-admin/common/library` | `GET/POST /api/library` | `resource_library_items` | `manager+` |
 | ✅ 외부사이트 | `/system-admin/common/external-sites` | `GET /api/system/external-links` | `external_link_items` | `viewer+` |
@@ -249,36 +248,36 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
 
 ---
 
-### Phase 4. 공정 관리 + 품질·안전 `Week 10~13`
+### Phase 4. 공정 관리 + 안전 `Week 10~13`
 
-> 1팀: 공정 관리 (차트/캘린더 포함) | 2팀: 품질·안전 전체
+> 1팀: 공정 관리 (차트/캘린더 포함) | 2팀: 안전 전체
 > 의존성 없음 — 완전 병렬
 
 #### 1팀 — 공정 관리
 
-> 현재상태: ✅ Phase 4 1팀 핵심 구현 완료 (공정 라우트 8개 + API 8개 + GANTT/S-Curve + 공사안전일지 인쇄 동작 반영)
+> 현재상태: ✅ Phase 4 1팀 핵심 구현 완료 (공정 핵심 라우트/API + GANTT/S-Curve + 안전 일지 인쇄 + 리포트 첨부 통합 반영)
 
 | 하위 메뉴 | 라우트 | API | 컬렉션 | 권한 |
 |----------|--------|-----|--------|------|
-| ✅ 공정 메인 | `/progress` | `GET /api/progress/summary` | 집계뷰 | `viewer+` |
-| ✅ 보고서 (감리/일보/주간) | `/progress/reports` | `GET/POST /api/progress/reports` | `reports` | `manager+` |
-| ✅ 공사안전일지 | `/progress/daily-safety-log` | `GET/POST /api/progress/daily-safety-log` | `daily_safety_logs` | `manager+` |
-| ✅ Master/주간 공정표 | `/progress/master-schedule` | `GET/POST /api/progress/schedule` | `schedule_items` | `manager+` |
-| ✅ 실적대비 (S-Curve) | `/progress/comparison` | `GET /api/progress/comparison` | `schedule_items` | `viewer+` |
-| ✅ Project Calendar | `/progress/calendar` | `GET/POST /api/progress/calendar` | `project_calendar` | `manager+` |
-| ✅ 기상자료 | `/progress/weather` | `GET /api/progress/weather` | `weather_snapshots` | `viewer+` |
-| ✅ 공정진행사진 | `/progress/photos` | `GET/POST /api/progress/photos` | `progress_photos` | `manager+` |
+| ✅ 진행 개요 | `/progress` | `GET /api/progress/summary` | 집계뷰 | `viewer+` |
+| ✅ 현장 리포트 (보고서 탭) | `/progress/reports` | `GET/POST /api/progress/reports` | `reports` | `manager+` |
+| ✅ 안전 일지 (안전 메뉴) | `/quality-safety/safety/management/daily-log` | `GET/POST /api/safety/daily-logs` | `daily_safety_logs` | `manager+` |
+| ✅ 공정 추적 (공정표 탭) | `/progress/master-schedule` | `GET/POST /api/progress/schedule` | `schedule_items` | `manager+` |
+| ✅ 진도 분석 (공정 추적 탭) | `/progress/comparison` | `GET /api/progress/comparison` | `schedule_items` | `viewer+` |
+| ✅ 일정 캘린더 | `/progress/calendar` | `GET/POST /api/progress/calendar` | `project_calendar` | `manager+` |
+| ✅ 현장 날씨 | `/progress/weather` | `GET /api/progress/weather` | `weather_snapshots` | `viewer+` |
+| ✅ 리포트 첨부(사진 포함) | `/progress/reports` | `POST /api/progress/reports (attachments[])` | `reports.attachments[]` | `manager+` |
 
 **1팀 Phase 4 핵심 구현:**
 - GANTT 바차트 (라이브러리 연동: `@neuronicx/gantt` 또는 커스텀)
 - S-Curve 차트 (`recharts`)
-- 공사안전일지 인쇄 양식
-- 공정진행사진 갤러리 뷰어
+- 안전 일지 인쇄 양식
+- 리포트 첨부(사진 포함) 업로드/표시
 
 **1팀 Phase 4 DB 모델:**
-`reports`, `daily_safety_logs`, `schedule_items`, `progress_by_tech`, `project_calendar`, `progress_photos`
+`reports(attachments 포함)`, `daily_safety_logs`, `schedule_items`, `progress_by_tech`, `project_calendar`
 
-#### 2팀 — 품질·안전
+#### 2팀 — 안전
 
 | 하위 메뉴 | 라우트 | API | 컬렉션 | 권한 |
 |----------|--------|-----|--------|------|
@@ -287,20 +286,20 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
 | ✅ 안전관리계획서 | `quality-safety/safety/standards/plan` | `GET/POST /api/safety/standards` | `safety_documents` | `manager+` |
 | ✅ 협력사안전관리계획 | `quality-safety/safety/standards/partner` | `GET/POST /api/safety/standards` | `safety_documents` | `manager+` |
 | ✅ 안전기준 | `quality-safety/safety/regulations` | `GET /api/safety/regulations` | `safety_regulation_items` | `viewer+` |
-| ✅ 개설시 (대관신고/선임) | `quality-safety/safety/management/setup` | `GET/POST /api/safety/management/setup` | `government_reports`, `safety_manager_assignments` | `manager+` |
-| ✅ 진행중 (상황보고/관리비) | `quality-safety/safety/management/ongoing` | `GET/POST /api/safety/reports` | `safety_reports` | `manager+` |
-| ✅ 준공시안전업무 | `quality-safety/safety/management/completion` | `GET/POST /api/safety/completion` | `accident_records` | `manager+` |
-| ✅ 무재해목표달성 | `quality-safety/safety/rewards/accident-free` | `GET/POST /api/safety/rewards` | `safety_rewards` | `manager+` |
-| ✅ 현장소장마일리지 | `quality-safety/safety/rewards/mileage` | `GET/POST /api/safety/mileage` | `safety_mileage_records` | `manager+` |
-| ✅ 점검체크리스트 | `quality-safety/safety/rewards/checklist` | `GET/POST /api/safety/checklists` | `safety_checklists` | `manager+` |
+| ✅ 착수 준비 (인허가/선임) | `quality-safety/safety/management/setup` | `GET/POST /api/safety/management/setup` | `government_reports`, `safety_manager_assignments` | `manager+` |
+| ✅ 운영 리포트 (상황/운영비) | `quality-safety/safety/management/ongoing` | `GET/POST /api/safety/reports` | `safety_reports` | `manager+` |
+| ✅ 사고/조치 이력 | `quality-safety/safety/management/completion` | `GET/POST /api/safety/completion` | `accident_records` | `manager+` |
+| ✅ 무재해 인센티브 | `quality-safety/safety/rewards/accident-free` | `GET/POST /api/safety/rewards` | `safety_rewards` | `manager+` |
+| ✅ 안전 포인트 | `quality-safety/safety/rewards/mileage` | `GET/POST /api/safety/mileage` | `safety_mileage_records` | `manager+` |
+| ✅ 점검 체크리스트 | `quality-safety/safety/rewards/checklist` | `GET/POST /api/safety/checklists` | `safety_checklists` | `manager+` |
 | ✅ 안전법규 | `quality-safety/safety/laws` | `GET /api/system/external-links?category=laws` | `external_link_items` | `viewer+` |
 | ✅ 안전교육 | `quality-safety/safety/education/training` | `GET/POST /api/safety/education` | `safety_education_records` | `manager+` |
-| ✅ 보호구지급 | `quality-safety/safety/education/equipment` | `GET/POST /api/safety/ppe` | `ppe_distribution_records` | `manager+` |
-| ✅ 건강검진 | `quality-safety/safety/education/health` | `GET/POST /api/safety/health` | `health_check_records` | `manager+` |
-| ✅ 무재해현황 | `quality-safety/safety/education/accident-free` | `GET /api/safety/accident-free-status` | `safety_rewards` | `viewer+` |
-| ✅ 신규교육대상자 | `quality-safety/safety/education/new-worker` | `GET /api/safety/new-workers` | `workforce_attendance` | `manager+` |
-| ✅ 표준안전시설물 | `quality-safety/safety/facilities/standard` | `GET/POST /api/safety/facilities` | `safety_facilities` | `manager+` |
-| ✅ 우수안전시설물 | `quality-safety/safety/facilities/excellent` | `GET/POST /api/safety/facilities` | `safety_facilities` | `manager+` |
+| ✅ 보호구 지급 | `quality-safety/safety/education/equipment` | `GET/POST /api/safety/ppe` | `ppe_distribution_records` | `manager+` |
+| ✅ 건강 관리 | `quality-safety/safety/education/health` | `GET/POST /api/safety/health` | `health_check_records` | `manager+` |
+| ✅ 무재해 현황 | `quality-safety/safety/education/accident-free` | `GET /api/safety/accident-free-status` | `safety_rewards` | `viewer+` |
+| ✅ 신규자 온보딩 | `quality-safety/safety/education/new-worker` | `GET /api/safety/new-workers` | `workforce_attendance` | `manager+` |
+| ✅ 표준 시설 | `quality-safety/safety/facilities/standard` | `GET/POST /api/safety/facilities` | `safety_facilities` | `manager+` |
+| ✅ 우수 사례 | `quality-safety/safety/facilities/excellent` | `GET/POST /api/safety/facilities` | `safety_facilities` | `manager+` |
 
 **2팀 Phase 4 DB 모델:**
 `safety_policies`, `safety_documents`, `safety_regulation_items`, `government_reports`, `safety_manager_assignments`, `safety_reports`, `safety_rewards`, `safety_mileage_records`, `safety_checklists`, `safety_education_records`, `ppe_distribution_records`, `health_check_records`, `accident_records`, `safety_facilities`
@@ -309,10 +308,10 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
 
 - [x] GANTT 공정표 표시 + 진도율 입력
 - [x] S-Curve 실적대비 차트 렌더링
-- [x] 공사안전일지 입력 + 인쇄 동작
+- [x] 안전 일지 입력 + 인쇄 동작
 - [x] 안전교육 CRUD + 집계
 - [x] 무재해목표달성 관리 동작
-- [x] 품질·안전 20개 하위 페이지 전체 CRUD
+- [x] 안전 20개 하위 페이지 전체 CRUD
 
 ---
 
@@ -330,7 +329,7 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
 | ✅ Open-Meteo 연동 | 현장별 좌표 기반 기상 예보 API (무료/오픈소스, API키 불필요) | 날씨 위젯 실시간 데이터, 기상특보 알림 |
 | ✅ 통합 문서 검색 | 전문 검색 (문서/도면/ISSUE/자료실) | 통합 검색 페이지 |
 | ✅ 알림 시스템 | 미결문서, 기상특보, 결재 요청 | 알림 아이콘 + 목록 |
-| 인쇄 양식 | 공사안전일지, 승인요청서, 검수요청서 | 인쇄용 CSS + 출력 |
+| 인쇄 양식 | 안전 일지, 승인요청서, 검수요청서 | 인쇄용 CSS + 출력 |
 | 대시보드 고도화 | 공정률 차트, S-Curve 미니, 미결 카운트 | 대시보드 위젯 완성 |
 
 #### 2팀 — WIS/DIS + Support
@@ -562,7 +561,7 @@ Week  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
 ├──────────────────────────────────────────────────┤
 │  Top Nav (h-12)                                  │
 │  [대시보드][현장정보][공정관리][자원·조달]            │
-│  [품질·안전][설계·문서][시스템관리]                   │
+│  [QA][QC][안전][설계·문서][시스템관리]                │
 ├────────┬───────────────────────────┬─────────────┤
 │ Left   │     메인 콘텐츠 (flex-1)   │  Right     │
 │ Side   │                           │  Widget    │

@@ -1,11 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DataTable, FormInput, Pagination, StatusBadge } from "@/components/ui";
+import { DataTable, FileUpload, FormInput, Pagination, StatusBadge } from "@/components/ui";
 import { hasMinRole, useCurrentUser } from "@/hooks/use-current-user";
 
 type ReportType = "supervision" | "daily" | "weekly";
 type Status = "draft" | "in_review" | "approved" | "rejected" | "completed";
+
+type ReportAttachment = {
+  fileAssetId: string;
+  fileName: string;
+  sortOrder: number;
+};
 
 type ReportRow = {
   _id: string;
@@ -14,6 +20,7 @@ type ReportRow = {
   reportDate: string;
   authorName: string;
   progressRate: number;
+  attachments?: ReportAttachment[];
   status: Status;
 };
 
@@ -21,6 +28,16 @@ type ReportResponse = {
   ok: boolean;
   data: ReportRow[];
   meta?: { page: number; totalPages: number };
+  error?: string;
+};
+
+type UploadResponse = {
+  ok: boolean;
+  data?: {
+    fileAssetId: string;
+    originalName: string;
+    storagePath: string;
+  };
   error?: string;
 };
 
@@ -47,9 +64,11 @@ export default function ProgressReportsPage() {
   const [reportDate, setReportDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [progressRate, setProgressRate] = useState(0);
   const [content, setContent] = useState("");
+  const [attachments, setAttachments] = useState<ReportAttachment[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -88,6 +107,62 @@ export default function ProgressReportsPage() {
     void loadData(1);
   }, [loadData]);
 
+  async function handleUpload(files: File[]) {
+    if (files.length === 0) {
+      return;
+    }
+
+    setIsUploading(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const uploaded: ReportAttachment[] = [];
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("module", "progress-reports");
+        if (user.userId) {
+          formData.append("uploadedBy", user.userId);
+        }
+
+        const response = await fetch("/api/files/upload", {
+          method: "POST",
+          body: formData,
+        });
+        const result = (await response.json()) as UploadResponse;
+        if (!result.ok || !result.data) {
+          throw new Error(result.error ?? "첨부 업로드 실패");
+        }
+
+        uploaded.push({
+          fileAssetId: result.data.fileAssetId,
+          fileName: result.data.originalName,
+          sortOrder: uploaded.length,
+        });
+      }
+
+      setAttachments((prev) =>
+        [...prev, ...uploaded].map((row, index) => ({
+          ...row,
+          sortOrder: index,
+        })),
+      );
+      setMessage(`${uploaded.length}개 첨부파일이 업로드되었습니다.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "첨부 업로드 실패");
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
+  function removeAttachment(fileAssetId: string) {
+    setAttachments((prev) =>
+      prev
+        .filter((row) => row.fileAssetId !== fileAssetId)
+        .map((row, index) => ({ ...row, sortOrder: index })),
+    );
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canWrite) {
@@ -108,6 +183,7 @@ export default function ProgressReportsPage() {
           reportDate,
           progressRate,
           content,
+          attachments,
         }),
       });
 
@@ -121,6 +197,7 @@ export default function ProgressReportsPage() {
       setReportDate(new Date().toISOString().slice(0, 10));
       setProgressRate(0);
       setContent("");
+      setAttachments([]);
       setMessage("보고서가 등록되었습니다.");
       await loadData(1);
     } catch (err) {
@@ -133,7 +210,7 @@ export default function ProgressReportsPage() {
   return (
     <section className="space-y-4 rounded-xl border border-border bg-background-card p-6 shadow-[var(--shadow-soft)]">
       <header>
-        <h1 className="text-xl font-semibold text-foreground">보고서 (감리/일보/주간)</h1>
+        <h1 className="text-xl font-semibold text-foreground">현장 리포트 (감리/일보/주간)</h1>
         <p className="mt-1 text-sm text-foreground-muted">현장 보고서를 등록하고 상태별로 조회합니다.</p>
       </header>
 
@@ -231,10 +308,30 @@ export default function ProgressReportsPage() {
             />
           </label>
 
+          <div className="space-y-2">
+            <FileUpload label="첨부파일(사진 포함)" multiple onFilesChange={(files) => void handleUpload(files)} />
+            {attachments.length > 0 ? (
+              <ul className="space-y-1 rounded-md border border-border bg-background-card p-3 text-xs text-foreground-muted">
+                {attachments.map((file) => (
+                  <li key={file.fileAssetId} className="flex items-center justify-between gap-2">
+                    <span className="truncate">{file.fileName}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(file.fileAssetId)}
+                      className="rounded border border-border px-2 py-0.5 text-xs text-foreground hover:bg-background-soft"
+                    >
+                      제거
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isUploading}
               className="rounded-md bg-[#ecebe8] px-4 py-2 text-sm font-medium text-foreground hover:bg-[#e2e0db] disabled:opacity-60"
             >
               보고서 등록
@@ -269,6 +366,12 @@ export default function ProgressReportsPage() {
             header: "진도율",
             className: "w-20 text-right",
             render: (value) => `${Number(value).toFixed(1)}%`,
+          },
+          {
+            key: "attachments",
+            header: "첨부",
+            className: "w-20 text-right",
+            render: (value) => `${Array.isArray(value) ? value.length : 0}건`,
           },
           {
             key: "status",

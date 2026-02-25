@@ -4,14 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const subMenus = [
-  { href: "/progress", label: "공정 메인" },
-  { href: "/progress/reports", label: "보고서" },
-  { href: "/progress/daily-safety-log", label: "공사안전일지" },
-  { href: "/progress/master-schedule", label: "Master/주간 공정표" },
-  { href: "/progress/comparison", label: "실적대비(S-Curve)" },
-  { href: "/progress/calendar", label: "Project Calendar" },
-  { href: "/progress/weather", label: "기상자료" },
-  { href: "/progress/photos", label: "공정진행사진" },
+  { href: "/progress", label: "진행 개요" },
+  { href: "/progress/reports", label: "현장 리포트" },
+  { href: "/progress/master-schedule", label: "공정 추적" },
+  { href: "/progress/calendar", label: "일정 캘린더" },
+  { href: "/progress/weather", label: "현장 날씨" },
 ];
 
 export default function ProgressLayout({

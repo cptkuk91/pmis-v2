@@ -3,7 +3,7 @@ import { baseFieldsPlugin } from "@/lib/mongoose-plugins";
 
 export interface IIntegrationSyncLog extends Document {
   siteId?: mongoose.Types.ObjectId;
-  sourceSystem: "wis" | "dis" | "open_meteo" | "other";
+  sourceSystem: "dis" | "open_meteo" | "other";
   syncType: "full" | "incremental" | "retry";
   status: "pending" | "running" | "success" | "failed";
   startedAt: Date;
@@ -28,7 +28,7 @@ const IntegrationSyncLogSchema = new Schema<IIntegrationSyncLog>(
     siteId: { type: Schema.Types.ObjectId, ref: "Site", default: null, index: true },
     sourceSystem: {
       type: String,
-      enum: ["wis", "dis", "open_meteo", "other"],
+      enum: ["dis", "open_meteo", "other"],
       required: true,
       index: true,
     },

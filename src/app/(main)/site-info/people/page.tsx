@@ -79,7 +79,7 @@ export default function PeoplePage() {
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">인원정보</h1>
+        <h1 className="text-xl font-semibold text-foreground">관계자 현황</h1>
         <button type="button" onClick={() => setShowForm(!showForm)} className="rounded-md bg-[#ecebe8] px-4 py-1.5 text-sm font-medium text-foreground hover:bg-[#e2e0db]">
           {showForm ? "취소" : "등록"}
         </button>

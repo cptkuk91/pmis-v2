@@ -44,13 +44,6 @@ const defaultExternalLinks = {
   ],
   general: [
     {
-      _id: "default-general-1",
-      category: "general",
-      name: "WIS",
-      url: "https://wis.example.com",
-      description: "출역/안전교육 외부 연계 시스템",
-    },
-    {
       _id: "default-general-2",
       category: "general",
       name: "DIS",

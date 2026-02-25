@@ -11,13 +11,6 @@ const faqItems = [
       "사내 계정 잠금 여부를 먼저 확인하고, 비밀번호 초기화 이후에도 실패하면 Support 티켓으로 접수해 주세요.",
   },
   {
-    id: "faq-wis-1",
-    category: "WIS 연동",
-    question: "WIS 데이터가 화면에 보이지 않습니다.",
-    answer:
-      "시스템관리 > WIS 연동에서 동기화를 실행한 뒤 출역/안전교육 화면을 새로고침해 주세요. 실패 건이 있으면 재시도를 실행하세요.",
-  },
-  {
     id: "faq-dis-1",
     category: "DIS 연동",
     question: "DIS 도면 열람이 되지 않습니다.",

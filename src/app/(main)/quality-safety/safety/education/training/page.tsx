@@ -20,8 +20,6 @@ export default function SafetyTrainingPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [showForm, setShowForm] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [syncError, setSyncError] = useState<string | null>(null);
   const [form, setForm] = useState({ educationType: "", title: "", educationDate: "", instructor: "", duration: "", attendeeCount: "", content: "" });
 
   const fetchData = useCallback((p: number) => {
@@ -40,38 +38,12 @@ export default function SafetyTrainingPage() {
     if (json.ok) { setShowForm(false); setForm({ educationType: "", title: "", educationDate: "", instructor: "", duration: "", attendeeCount: "", content: "" }); fetchData(1); setPage(1); }
   }
 
-  async function handleWisSync() {
-    setSyncMessage(null);
-    setSyncError(null);
-    try {
-      const response = await fetch("/api/integrations/wis/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const result = await response.json();
-      if (!result.ok) {
-        throw new Error(result.error ?? "WIS 동기화 실패");
-      }
-      setSyncMessage("WIS 안전교육 데이터 동기화를 완료했습니다.");
-      fetchData(1);
-      setPage(1);
-    } catch (err) {
-      setSyncError(err instanceof Error ? err.message : "WIS 동기화 실패");
-    }
-  }
-
   return (
     <section className="space-y-4">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+      <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">안전교육</h1>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => void handleWisSync()} className="rounded-md border border-border bg-background-soft px-4 py-1.5 text-sm font-medium text-foreground hover:bg-background-card">WIS 동기화</button>
-          <button type="button" onClick={() => setShowForm(!showForm)} className="rounded-md bg-[#ecebe8] px-4 py-1.5 text-sm font-medium text-foreground hover:bg-[#e2e0db]">{showForm ? "취소" : "등록"}</button>
-        </div>
+        <button type="button" onClick={() => setShowForm(!showForm)} className="rounded-md bg-[#ecebe8] px-4 py-1.5 text-sm font-medium text-foreground hover:bg-[#e2e0db]">{showForm ? "취소" : "등록"}</button>
       </div>
-      {syncMessage ? <p className="text-sm text-success">{syncMessage}</p> : null}
-      {syncError ? <p className="text-sm text-danger">{syncError}</p> : null}
       {showForm && (
         <div className="rounded-lg border border-border bg-background-card p-4 space-y-3">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">

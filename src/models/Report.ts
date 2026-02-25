@@ -4,6 +4,12 @@ import type { Status } from "@/types";
 
 export type ReportType = "supervision" | "daily" | "weekly";
 
+export interface IReportAttachment {
+  fileAssetId: mongoose.Types.ObjectId;
+  fileName: string;
+  sortOrder: number;
+}
+
 export interface IReport extends Document {
   siteId: mongoose.Types.ObjectId;
   reportType: ReportType;
@@ -12,6 +18,7 @@ export interface IReport extends Document {
   authorName: string;
   content: string;
   progressRate: number;
+  attachments: IReportAttachment[];
   status: Status;
   createdBy?: mongoose.Types.ObjectId;
   updatedBy?: mongoose.Types.ObjectId;
@@ -34,6 +41,14 @@ const ReportSchema = new Schema<IReport>(
     authorName: { type: String, required: true, trim: true, default: "현장관리자" },
     content: { type: String, default: "", trim: true },
     progressRate: { type: Number, default: 0, min: 0, max: 100 },
+    attachments: [
+      {
+        _id: false,
+        fileAssetId: { type: Schema.Types.ObjectId, ref: "FileAsset", required: true },
+        fileName: { type: String, required: true, trim: true },
+        sortOrder: { type: Number, default: 0 },
+      },
+    ],
     status: {
       type: String,
       enum: ["draft", "in_review", "approved", "rejected", "completed"],

@@ -35,8 +35,6 @@ export default function WorkforceDailyPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [showForm, setShowForm] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [syncError, setSyncError] = useState<string | null>(null);
   const [form, setForm] = useState({
     workerName: "", company: "", jobType: "", workType: "", attendanceDate: "",
     isPresent: true, hoursWorked: 8, overtimeHours: 0,
@@ -69,43 +67,17 @@ export default function WorkforceDailyPage() {
     }
   }
 
-  async function handleWisSync() {
-    setSyncMessage(null);
-    setSyncError(null);
-    try {
-      const response = await fetch("/api/integrations/wis/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const result = await response.json();
-      if (!result.ok) {
-        throw new Error(result.error ?? "WIS 동기화 실패");
-      }
-      setSyncMessage("WIS 출역 데이터 동기화를 완료했습니다.");
-      fetchData(1, date);
-      setPage(1);
-    } catch (err) {
-      setSyncError(err instanceof Error ? err.message : "WIS 동기화 실패");
-    }
-  }
-
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <h1 className="text-xl font-semibold text-foreground">일일 근태</h1>
         <div className="flex flex-wrap items-center gap-2">
           <input type="date" className="h-9 rounded-md border border-border px-3 text-sm" value={date} onChange={(e) => { setDate(e.target.value); setPage(1); }} />
-          <button type="button" onClick={() => void handleWisSync()} className="rounded-md border border-border bg-background-soft px-4 py-1.5 text-sm font-medium text-foreground hover:bg-background-card">
-            WIS 동기화
-          </button>
           <button type="button" onClick={() => setShowForm(!showForm)} className="rounded-md bg-[#ecebe8] px-4 py-1.5 text-sm font-medium text-foreground hover:bg-[#e2e0db]">
             {showForm ? "취소" : "등록"}
           </button>
         </div>
       </div>
-      {syncMessage ? <p className="text-sm text-success">{syncMessage}</p> : null}
-      {syncError ? <p className="text-sm text-danger">{syncError}</p> : null}
       {showForm && (
         <div className="rounded-lg border border-border bg-background-card p-4 space-y-3">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
