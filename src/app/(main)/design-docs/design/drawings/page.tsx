@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DataTable, FormInput, Pagination, StatusBadge } from "@/components/ui";
 import { hasMinRole, useCurrentUser } from "@/hooks/use-current-user";
+import {
+  DEFAULT_DRAWING_DISCIPLINE,
+  DRAWING_DISCIPLINES,
+  normalizeDrawingDiscipline,
+  type DrawingDiscipline,
+} from "@/lib/drawing-discipline";
 
 type DrawingItem = {
   _id: string;
@@ -27,7 +33,7 @@ export default function DrawingsPage() {
 
   const [items, setItems] = useState<DrawingItem[]>([]);
   const [keyword, setKeyword] = useState("");
-  const [disciplineFilter, setDisciplineFilter] = useState("all");
+  const [disciplineFilter, setDisciplineFilter] = useState<"all" | DrawingDiscipline>("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -35,7 +41,7 @@ export default function DrawingsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [drawingNo, setDrawingNo] = useState("");
   const [drawingName, setDrawingName] = useState("");
-  const [discipline, setDiscipline] = useState("건축");
+  const [discipline, setDiscipline] = useState<DrawingDiscipline>(DEFAULT_DRAWING_DISCIPLINE);
   const [location, setLocation] = useState("");
   const [revision, setRevision] = useState("0");
   const [status, setStatus] = useState<"draft" | "in_review" | "approved" | "rejected" | "completed">("draft");
@@ -60,13 +66,13 @@ export default function DrawingsPage() {
         const response = await fetch(`/api/drawings?${params.toString()}`, { cache: "no-store" });
         const result = (await response.json()) as DrawingResponse;
         if (!result.ok) {
-          throw new Error(result.error ?? "도면목록 조회 실패");
+          throw new Error(result.error ?? "도면대장 조회 실패");
         }
         setItems(result.data);
         setPage(result.meta?.page ?? 1);
         setTotalPages(result.meta?.totalPages ?? 1);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "도면목록 조회 실패");
+        setError(err instanceof Error ? err.message : "도면대장 조회 실패");
       } finally {
         setIsLoading(false);
       }
@@ -82,7 +88,7 @@ export default function DrawingsPage() {
     setEditingId(null);
     setDrawingNo("");
     setDrawingName("");
-    setDiscipline("건축");
+    setDiscipline(DEFAULT_DRAWING_DISCIPLINE);
     setLocation("");
     setRevision("0");
     setStatus("draft");
@@ -92,7 +98,7 @@ export default function DrawingsPage() {
     setEditingId(item._id);
     setDrawingNo(item.drawingNo);
     setDrawingName(item.drawingName);
-    setDiscipline(item.discipline);
+    setDiscipline(normalizeDrawingDiscipline(item.discipline));
     setLocation(item.location);
     setRevision(item.revision);
     setStatus(item.status);
@@ -112,17 +118,18 @@ export default function DrawingsPage() {
     try {
       const endpoint = editingId ? `/api/drawings/${editingId}` : "/api/drawings";
       const method = editingId ? "PATCH" : "POST";
+      const payload = {
+        ...(editingId ? {} : { drawingNo }),
+        drawingName,
+        discipline,
+        location,
+        revision,
+        status,
+      };
       const response = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          drawingNo,
-          drawingName,
-          discipline,
-          location,
-          revision,
-          status,
-        }),
+        body: JSON.stringify(payload),
       });
       const result = (await response.json()) as { ok: boolean; error?: string };
       if (!result.ok) {
@@ -163,13 +170,33 @@ export default function DrawingsPage() {
   return (
     <section className="space-y-4 rounded-xl border border-border bg-background-card p-6 shadow-[var(--shadow-soft)]">
       <header>
-        <h1 className="text-xl font-semibold text-foreground">도면목록</h1>
-        <p className="mt-1 text-sm text-foreground-muted">도면 원장 및 Revision 상태를 관리합니다.</p>
+        <h1 className="text-xl font-semibold text-foreground">도면대장</h1>
+        <p className="mt-1 text-sm text-foreground-muted">도면대장과 Revision 상태를 관리합니다.</p>
       </header>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_180px_180px_auto]">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(280px,1fr)_180px_180px_auto] md:items-end">
         <FormInput label="검색어" value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="도면번호/도면명/위치" />
-        <FormInput label="기술구분" value={disciplineFilter === "all" ? "" : disciplineFilter} onChange={(event) => setDisciplineFilter(event.target.value || "all")} placeholder="전체는 비워두기" />
+        <label className="space-y-1">
+          <span className="block text-sm font-medium text-foreground">기술구분</span>
+          <select
+            value={disciplineFilter}
+            onChange={(event) =>
+              setDisciplineFilter(
+                event.target.value === "all"
+                  ? "all"
+                  : normalizeDrawingDiscipline(event.target.value),
+              )
+            }
+            className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
+          >
+            <option value="all">전체</option>
+            {DRAWING_DISCIPLINES.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="space-y-1">
           <span className="block text-sm font-medium text-foreground">상태</span>
           <select
@@ -185,40 +212,75 @@ export default function DrawingsPage() {
             <option value="completed">완료</option>
           </select>
         </label>
-        <button type="button" onClick={() => void loadItems(1)} className="mt-6 rounded-md border border-border bg-background-soft px-4 py-2 text-sm font-medium text-foreground hover:bg-background-card">
+        <button type="button" onClick={() => void loadItems(1)} className="rounded-md border border-border bg-background-soft px-4 py-2 text-sm font-medium text-foreground hover:bg-background-card md:self-end">
           조회
         </button>
       </div>
 
       {canManage ? (
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 md:grid-cols-[160px_1fr_140px_1fr_120px_160px_auto_auto]">
-          <FormInput label="도면번호" value={drawingNo} onChange={(event) => setDrawingNo(event.target.value)} required />
-          <FormInput label="도면명" value={drawingName} onChange={(event) => setDrawingName(event.target.value)} required />
-          <FormInput label="기술구분" value={discipline} onChange={(event) => setDiscipline(event.target.value)} />
-          <FormInput label="위치" value={location} onChange={(event) => setLocation(event.target.value)} />
-          <FormInput label="Rev" value={revision} onChange={(event) => setRevision(event.target.value)} />
-          <label className="space-y-1">
-            <span className="block text-sm font-medium text-foreground">상태</span>
-            <select
-              value={status}
-              onChange={(event) => setStatus(event.target.value as DrawingItem["status"])}
-              className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
-            >
-              <option value="draft">임시저장</option>
-              <option value="in_review">검토중</option>
-              <option value="approved">승인</option>
-              <option value="rejected">반려</option>
-              <option value="completed">완료</option>
-            </select>
-          </label>
-          <button type="submit" disabled={isSubmitting} className="mt-6 rounded-md border border-border bg-background-soft px-4 py-2 text-sm font-medium text-foreground hover:bg-background-card disabled:opacity-60">
-            {editingId ? "수정" : "등록"}
-          </button>
-          {editingId ? (
-            <button type="button" onClick={resetForm} className="mt-6 rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft">
-              취소
-            </button>
-          ) : null}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[180px_minmax(360px,1fr)_160px] xl:items-start">
+          <div className="space-y-1">
+            <FormInput
+              label="도면번호"
+              value={drawingNo}
+              onChange={(event) => setDrawingNo(event.target.value)}
+              required
+              readOnly={Boolean(editingId)}
+              disabled={Boolean(editingId)}
+            />
+          </div>
+            <FormInput
+              label="도면명"
+              value={drawingName}
+              onChange={(event) => setDrawingName(event.target.value)}
+              required
+              wrapperClassName="md:col-span-2 xl:col-span-1"
+            />
+            <label className="space-y-1">
+              <span className="block text-sm font-medium text-foreground">기술구분</span>
+              <select
+                value={discipline}
+                onChange={(event) => setDiscipline(normalizeDrawingDiscipline(event.target.value))}
+                className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
+              >
+                {DRAWING_DISCIPLINES.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[minmax(280px,1fr)_110px_160px_auto] xl:items-end">
+            <FormInput label="위치" value={location} onChange={(event) => setLocation(event.target.value)} />
+            <FormInput label="Rev" value={revision} onChange={(event) => setRevision(event.target.value)} />
+            <label className="space-y-1">
+              <span className="block text-sm font-medium text-foreground">상태</span>
+              <select
+                value={status}
+                onChange={(event) => setStatus(event.target.value as DrawingItem["status"])}
+                className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
+              >
+                <option value="draft">임시저장</option>
+                <option value="in_review">검토중</option>
+                <option value="approved">승인</option>
+                <option value="rejected">반려</option>
+                <option value="completed">완료</option>
+              </select>
+            </label>
+            <div className="flex flex-wrap items-end justify-end gap-2 md:col-span-2 xl:col-span-1">
+              <button type="submit" disabled={isSubmitting} className="rounded-md border border-border bg-background-soft px-4 py-2 text-sm font-medium text-foreground hover:bg-background-card disabled:opacity-60">
+                {editingId ? "수정" : "등록"}
+              </button>
+              {editingId ? (
+                <button type="button" onClick={resetForm} className="rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft">
+                  취소
+                </button>
+              ) : null}
+            </div>
+          </div>
         </form>
       ) : isUserLoading ? null : (
         <p className="text-sm text-foreground-muted">도면 등록/수정/삭제는 `manager` 이상 권한이 필요합니다.</p>

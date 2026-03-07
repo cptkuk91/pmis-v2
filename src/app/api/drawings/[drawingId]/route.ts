@@ -6,6 +6,7 @@ import { ApiError, handleApiError, NOT_FOUND, VALIDATION_ERROR } from "@/lib/api
 import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import { logUpdate, logDelete } from "@/lib/audit-logger";
+import { isDrawingDiscipline } from "@/lib/drawing-discipline";
 import Drawing from "@/models/Drawing";
 import type { Status } from "@/types";
 
@@ -53,13 +54,19 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     }
 
     if (nextDrawingNo !== undefined) {
-      drawing.drawingNo = nextDrawingNo;
+      if (nextDrawingNo !== drawing.drawingNo) {
+        throw VALIDATION_ERROR("도면번호는 등록 후 변경할 수 없습니다.");
+      }
     }
     if (nextDrawingName !== undefined) {
       drawing.drawingName = nextDrawingName;
     }
     if (body.discipline !== undefined) {
-      drawing.discipline = String(body.discipline ?? "").trim();
+      const nextDiscipline = String(body.discipline ?? "").trim();
+      if (!isDrawingDiscipline(nextDiscipline)) {
+        throw VALIDATION_ERROR("기술구분 값이 올바르지 않습니다.");
+      }
+      drawing.discipline = nextDiscipline;
     }
     if (body.location !== undefined) {
       drawing.location = String(body.location ?? "").trim();

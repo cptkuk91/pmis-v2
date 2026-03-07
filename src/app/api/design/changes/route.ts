@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/db";
 import { paginated, success } from "@/lib/api-response";
@@ -5,6 +6,7 @@ import { ApiError, handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import DesignChange from "@/models/DesignChange";
+import Drawing from "@/models/Drawing";
 import { logCreate } from "@/lib/audit-logger";
 
 function parsePositiveInt(rawValue: string | null, fallback: number, max = 100): number {
@@ -21,6 +23,58 @@ function escapeRegex(value: string): string {
 
 function isValidStatus(value: string): boolean {
   return ["draft", "in_review", "approved", "rejected", "completed"].includes(value);
+}
+
+function toChangeSummary(item: {
+  _id: unknown;
+  changeNo: string;
+  drawingId?: unknown;
+  drawingNo: string;
+  drawingName: string;
+  location?: string;
+  reason?: string;
+  requestedByName?: string;
+  status: string;
+  requestedAt?: Date;
+}) {
+  return {
+    _id: String(item._id),
+    changeNo: item.changeNo,
+    drawingId: item.drawingId ? String(item.drawingId) : null,
+    drawingNo: item.drawingNo,
+    drawingName: item.drawingName,
+    location: item.location ?? "",
+    reason: item.reason ?? "",
+    requestedByName: item.requestedByName ?? "",
+    status: item.status,
+    requestedAt: item.requestedAt ?? null,
+  };
+}
+
+async function resolveDrawingReference(siteId: string, drawingIdRaw: unknown) {
+  const drawingId = String(drawingIdRaw ?? "").trim();
+  if (!mongoose.Types.ObjectId.isValid(drawingId)) {
+    throw VALIDATION_ERROR("drawingId 값이 올바르지 않습니다.");
+  }
+
+  const drawing = await Drawing.findOne({
+    _id: new mongoose.Types.ObjectId(drawingId),
+    siteId: new mongoose.Types.ObjectId(siteId),
+    isDeleted: false,
+  })
+    .select({ _id: 1, drawingNo: 1, drawingName: 1, location: 1 })
+    .lean();
+
+  if (!drawing) {
+    throw new ApiError("선택한 도면을 찾을 수 없습니다.", 404, "DRAWING_NOT_FOUND");
+  }
+
+  return {
+    drawingId: String(drawing._id),
+    drawingNo: String(drawing.drawingNo ?? ""),
+    drawingName: String(drawing.drawingName ?? ""),
+    location: String(drawing.location ?? ""),
+  };
 }
 
 export async function GET(request: NextRequest) {
@@ -68,7 +122,7 @@ export async function GET(request: NextRequest) {
       DesignChange.countDocuments(filter),
     ]);
 
-    return paginated(items, page, limit, total);
+    return paginated(items.map(toChangeSummary), page, limit, total);
   } catch (err) {
     return handleApiError(err);
   }
@@ -86,17 +140,10 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json()) as Record<string, unknown>;
     const changeNo = String(body.changeNo ?? "").trim();
-    const drawingNo = String(body.drawingNo ?? "").trim();
-    const drawingName = String(body.drawingName ?? "").trim();
     if (!changeNo) {
       throw VALIDATION_ERROR("변경번호는 필수입니다.");
     }
-    if (!drawingNo) {
-      throw VALIDATION_ERROR("도면번호는 필수입니다.");
-    }
-    if (!drawingName) {
-      throw VALIDATION_ERROR("도면명은 필수입니다.");
-    }
+    const drawing = await resolveDrawingReference(siteId, body.drawingId);
 
     const requestedStatus = String(body.status ?? "in_review");
     const status = isValidStatus(requestedStatus) ? requestedStatus : "in_review";
@@ -104,9 +151,10 @@ export async function POST(request: NextRequest) {
     const created = await DesignChange.create({
       siteId,
       changeNo,
-      drawingNo,
-      drawingName,
-      location: String(body.location ?? "").trim(),
+      drawingId: new mongoose.Types.ObjectId(drawing.drawingId),
+      drawingNo: drawing.drawingNo,
+      drawingName: drawing.drawingName,
+      location: String(body.location ?? "").trim() || drawing.location,
       reason: String(body.reason ?? "").trim(),
       requestedByName: String(body.requestedByName ?? requester.userName).trim(),
       reviewedByName: String(body.reviewedByName ?? "").trim(),
@@ -119,7 +167,7 @@ export async function POST(request: NextRequest) {
     });
 
     await logCreate(String(siteId), "design_change", String(created._id), requester);
-    return success(created);
+    return success(toChangeSummary(created.toObject()));
   } catch (err) {
     return handleApiError(err);
   }

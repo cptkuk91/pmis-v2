@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { FormInput } from "@/components/ui";
 import { hasMinRole, useCurrentUser } from "@/hooks/use-current-user";
+import {
+  DEFAULT_DRAWING_DISCIPLINE,
+  DRAWING_DISCIPLINES,
+  normalizeDrawingDiscipline,
+  type DrawingDiscipline,
+} from "@/lib/drawing-discipline";
 
 type ReviewDetail = {
   _id: string;
@@ -28,7 +34,7 @@ export default function DrawingReviewRequestPage() {
   const [docNo, setDocNo] = useState("");
   const [drawingNo, setDrawingNo] = useState("");
   const [drawingName, setDrawingName] = useState("");
-  const [discipline, setDiscipline] = useState("건축");
+  const [discipline, setDiscipline] = useState<DrawingDiscipline>(DEFAULT_DRAWING_DISCIPLINE);
   const [location, setLocation] = useState("");
   const [reviewerName, setReviewerName] = useState("");
   const [requestContent, setRequestContent] = useState("");
@@ -56,7 +62,7 @@ export default function DrawingReviewRequestPage() {
         setDocNo(result.data.docNo);
         setDrawingNo(result.data.drawingNo);
         setDrawingName(result.data.drawingName);
-        setDiscipline(result.data.discipline ?? "건축");
+        setDiscipline(normalizeDrawingDiscipline(result.data.discipline));
         setLocation(result.data.location ?? "");
         setReviewerName(result.data.reviewerName ?? "");
         setRequestContent(result.data.requestContent ?? "");
@@ -145,7 +151,20 @@ export default function DrawingReviewRequestPage() {
             <FormInput label="문서번호" value={docNo} onChange={(event) => setDocNo(event.target.value)} required />
             <FormInput label="도면번호" value={drawingNo} onChange={(event) => setDrawingNo(event.target.value)} required />
             <FormInput label="도면명" value={drawingName} onChange={(event) => setDrawingName(event.target.value)} required />
-            <FormInput label="기술구분" value={discipline} onChange={(event) => setDiscipline(event.target.value)} />
+            <label className="space-y-1">
+              <span className="block text-sm font-medium text-foreground">기술구분</span>
+              <select
+                value={discipline}
+                onChange={(event) => setDiscipline(normalizeDrawingDiscipline(event.target.value))}
+                className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
+              >
+                {DRAWING_DISCIPLINES.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
             <FormInput label="위치" value={location} onChange={(event) => setLocation(event.target.value)} />
             <FormInput label="분류코드" value={classificationCode} onChange={(event) => setClassificationCode(event.target.value)} />
             <FormInput label="검토자" value={reviewerName} onChange={(event) => setReviewerName(event.target.value)} />

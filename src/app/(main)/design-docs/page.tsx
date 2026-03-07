@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function DesignDocsPage() {
   const sections = [
     { href: "/design-docs/design/reviews", label: "도면검토현황" },
-    { href: "/design-docs/design/drawings", label: "도면목록" },
+    { href: "/design-docs/design/drawings", label: "도면대장" },
     { href: "/design-docs/design/drawing-viewer", label: "도면 열람 시스템" },
     { href: "/design-docs/design/changes", label: "설계변경현황" },
     { href: "/design-docs/design/assets", label: "설계자료관리(트리)" },

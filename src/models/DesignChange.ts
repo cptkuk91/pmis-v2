@@ -5,6 +5,7 @@ import type { Status } from "@/types";
 export interface IDesignChange extends Document {
   siteId: mongoose.Types.ObjectId;
   changeNo: string;
+  drawingId?: mongoose.Types.ObjectId;
   drawingNo: string;
   drawingName: string;
   location: string;
@@ -26,6 +27,7 @@ const DesignChangeSchema = new Schema<IDesignChange>(
   {
     siteId: { type: Schema.Types.ObjectId, ref: "Site", required: true, index: true },
     changeNo: { type: String, required: true, trim: true },
+    drawingId: { type: Schema.Types.ObjectId, ref: "Drawing", default: null, index: true },
     drawingNo: { type: String, required: true, trim: true },
     drawingName: { type: String, required: true, trim: true },
     location: { type: String, default: "", trim: true },

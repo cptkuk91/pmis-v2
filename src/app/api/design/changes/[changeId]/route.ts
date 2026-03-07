@@ -6,6 +6,7 @@ import { ApiError, handleApiError, NOT_FOUND, VALIDATION_ERROR } from "@/lib/api
 import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import DesignChange from "@/models/DesignChange";
+import Drawing from "@/models/Drawing";
 import { logUpdate, logDelete } from "@/lib/audit-logger";
 import type { Status } from "@/types";
 
@@ -15,6 +16,58 @@ type Params = {
 
 function isStatus(value: string): value is Status {
   return ["draft", "in_review", "approved", "rejected", "completed"].includes(value);
+}
+
+function toChangeSummary(item: {
+  _id: unknown;
+  changeNo: string;
+  drawingId?: unknown;
+  drawingNo: string;
+  drawingName: string;
+  location?: string;
+  reason?: string;
+  requestedByName?: string;
+  status: string;
+  requestedAt?: Date;
+}) {
+  return {
+    _id: String(item._id),
+    changeNo: item.changeNo,
+    drawingId: item.drawingId ? String(item.drawingId) : null,
+    drawingNo: item.drawingNo,
+    drawingName: item.drawingName,
+    location: item.location ?? "",
+    reason: item.reason ?? "",
+    requestedByName: item.requestedByName ?? "",
+    status: item.status,
+    requestedAt: item.requestedAt ?? null,
+  };
+}
+
+async function resolveDrawingReference(siteId: string, drawingIdRaw: unknown) {
+  const drawingId = String(drawingIdRaw ?? "").trim();
+  if (!mongoose.Types.ObjectId.isValid(drawingId)) {
+    throw VALIDATION_ERROR("drawingId 값이 올바르지 않습니다.");
+  }
+
+  const drawing = await Drawing.findOne({
+    _id: new mongoose.Types.ObjectId(drawingId),
+    siteId: new mongoose.Types.ObjectId(siteId),
+    isDeleted: false,
+  })
+    .select({ _id: 1, drawingNo: 1, drawingName: 1, location: 1 })
+    .lean();
+
+  if (!drawing) {
+    throw new ApiError("선택한 도면을 찾을 수 없습니다.", 404, "DRAWING_NOT_FOUND");
+  }
+
+  return {
+    drawingId: String(drawing._id),
+    drawingNo: String(drawing.drawingNo ?? ""),
+    drawingName: String(drawing.drawingName ?? ""),
+    location: String(drawing.location ?? ""),
+  };
 }
 
 export async function PATCH(request: NextRequest, { params }: Params) {
@@ -39,18 +92,10 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
     const body = (await request.json()) as Record<string, unknown>;
     const nextChangeNo = body.changeNo === undefined ? undefined : String(body.changeNo ?? "").trim();
-    const nextDrawingNo = body.drawingNo === undefined ? undefined : String(body.drawingNo ?? "").trim();
-    const nextDrawingName = body.drawingName === undefined ? undefined : String(body.drawingName ?? "").trim();
     const nextStatus = body.status === undefined ? undefined : String(body.status ?? "").trim();
 
     if (nextChangeNo !== undefined && !nextChangeNo) {
       throw VALIDATION_ERROR("변경번호는 비워둘 수 없습니다.");
-    }
-    if (nextDrawingNo !== undefined && !nextDrawingNo) {
-      throw VALIDATION_ERROR("도면번호는 비워둘 수 없습니다.");
-    }
-    if (nextDrawingName !== undefined && !nextDrawingName) {
-      throw VALIDATION_ERROR("도면명은 비워둘 수 없습니다.");
     }
     if (nextStatus !== undefined && !isStatus(nextStatus)) {
       throw VALIDATION_ERROR("status 값이 올바르지 않습니다.");
@@ -59,11 +104,14 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     if (nextChangeNo !== undefined) {
       change.changeNo = nextChangeNo;
     }
-    if (nextDrawingNo !== undefined) {
-      change.drawingNo = nextDrawingNo;
-    }
-    if (nextDrawingName !== undefined) {
-      change.drawingName = nextDrawingName;
+    if (body.drawingId !== undefined) {
+      const drawing = await resolveDrawingReference(siteId, body.drawingId);
+      change.drawingId = new mongoose.Types.ObjectId(drawing.drawingId);
+      change.drawingNo = drawing.drawingNo;
+      change.drawingName = drawing.drawingName;
+      if (body.location === undefined || !String(body.location ?? "").trim()) {
+        change.location = drawing.location;
+      }
     }
     if (body.location !== undefined) {
       change.location = String(body.location ?? "").trim();
@@ -93,7 +141,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     await change.save();
 
     await logUpdate(String(siteId), "design_change", changeId, requester);
-    return success(change);
+    return success(toChangeSummary(change.toObject()));
   } catch (err) {
     return handleApiError(err);
   }

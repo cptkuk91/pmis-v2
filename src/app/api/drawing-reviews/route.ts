@@ -6,6 +6,7 @@ import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import { assertNoUnsafeHtml, assertSafeMutationRequest } from "@/lib/request-security";
 import { logCreate } from "@/lib/audit-logger";
+import { DEFAULT_DRAWING_DISCIPLINE, isDrawingDiscipline } from "@/lib/drawing-discipline";
 import DrawingReview from "@/models/DrawingReview";
 
 function parsePositiveInt(rawValue: string | null, fallback: number, max = 100): number {
@@ -87,6 +88,7 @@ export async function POST(request: NextRequest) {
     const docNo = String(body.docNo ?? "").trim();
     const drawingNo = String(body.drawingNo ?? "").trim();
     const drawingName = String(body.drawingName ?? "").trim();
+    const rawDiscipline = String(body.discipline ?? "").trim();
 
     if (!docNo) {
       throw VALIDATION_ERROR("문서번호는 필수입니다.");
@@ -97,6 +99,9 @@ export async function POST(request: NextRequest) {
     if (!drawingName) {
       throw VALIDATION_ERROR("도면명은 필수입니다.");
     }
+    if (rawDiscipline && !isDrawingDiscipline(rawDiscipline)) {
+      throw VALIDATION_ERROR("기술구분 값이 올바르지 않습니다.");
+    }
     assertNoUnsafeHtml(docNo, "문서번호");
     assertNoUnsafeHtml(drawingNo, "도면번호");
     assertNoUnsafeHtml(drawingName, "도면명");
@@ -106,7 +111,7 @@ export async function POST(request: NextRequest) {
       docNo,
       drawingNo,
       drawingName,
-      discipline: String(body.discipline ?? "건축").trim(),
+      discipline: rawDiscipline || DEFAULT_DRAWING_DISCIPLINE,
       location: String(body.location ?? "").trim(),
       requesterName: String(body.requesterName ?? requester.userName).trim(),
       reviewerName: String(body.reviewerName ?? "").trim(),

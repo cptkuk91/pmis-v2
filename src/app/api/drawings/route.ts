@@ -6,6 +6,7 @@ import { ApiError, handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import { logCreate } from "@/lib/audit-logger";
+import { DEFAULT_DRAWING_DISCIPLINE, isDrawingDiscipline } from "@/lib/drawing-discipline";
 import Drawing from "@/models/Drawing";
 import type { Status } from "@/types";
 
@@ -49,7 +50,9 @@ export async function GET(request: NextRequest) {
       filter.$or = [{ drawingNo: regex }, { drawingName: regex }, { location: regex }];
     }
     if (discipline && discipline !== "all") {
-      filter.discipline = discipline;
+      if (isDrawingDiscipline(discipline)) {
+        filter.discipline = discipline;
+      }
     }
     if (
       status === "draft" ||
@@ -95,11 +98,15 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as Record<string, unknown>;
     const drawingNo = String(body.drawingNo ?? "").trim();
     const drawingName = String(body.drawingName ?? "").trim();
+    const rawDiscipline = String(body.discipline ?? "").trim();
     if (!drawingNo) {
       throw VALIDATION_ERROR("도면번호는 필수입니다.");
     }
     if (!drawingName) {
       throw VALIDATION_ERROR("도면명은 필수입니다.");
+    }
+    if (rawDiscipline && !isDrawingDiscipline(rawDiscipline)) {
+      throw VALIDATION_ERROR("기술구분 값이 올바르지 않습니다.");
     }
 
     const rawFileAssetId = String(body.fileAssetId ?? "").trim();
@@ -114,7 +121,7 @@ export async function POST(request: NextRequest) {
       siteId,
       drawingNo,
       drawingName,
-      discipline: String(body.discipline ?? "건축").trim(),
+      discipline: rawDiscipline || DEFAULT_DRAWING_DISCIPLINE,
       location: String(body.location ?? "").trim(),
       revision: String(body.revision ?? "0").trim(),
       status,

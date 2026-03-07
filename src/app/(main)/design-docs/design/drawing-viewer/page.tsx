@@ -105,7 +105,7 @@ export default function DrawingViewerIntegrationPage() {
           href="/design-docs/design/drawings"
           className="rounded-md border border-border bg-background-soft px-3 py-2 text-sm font-medium text-foreground hover:bg-background"
         >
-          PMIS 도면관리로 이동
+          PMIS 도면대장으로 이동
         </Link>
         <a
           href={drawingViewerUrl}

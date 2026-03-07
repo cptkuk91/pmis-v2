@@ -6,6 +6,7 @@ import { ApiError, handleApiError, NOT_FOUND, VALIDATION_ERROR } from "@/lib/api
 import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import { logUpdate, logDelete } from "@/lib/audit-logger";
+import { isDrawingDiscipline } from "@/lib/drawing-discipline";
 import DrawingReview from "@/models/DrawingReview";
 
 type Params = {
@@ -83,7 +84,11 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       review.drawingName = nextDrawingName;
     }
     if (body.discipline !== undefined) {
-      review.discipline = String(body.discipline ?? "").trim();
+      const nextDiscipline = String(body.discipline ?? "").trim();
+      if (!isDrawingDiscipline(nextDiscipline)) {
+        throw VALIDATION_ERROR("기술구분 값이 올바르지 않습니다.");
+      }
+      review.discipline = nextDiscipline;
     }
     if (body.location !== undefined) {
       review.location = String(body.location ?? "").trim();

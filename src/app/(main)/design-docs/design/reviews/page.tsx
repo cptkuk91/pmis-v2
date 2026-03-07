@@ -4,6 +4,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DataTable, FormInput, Pagination, StatusBadge } from "@/components/ui";
 import { hasMinRole, useCurrentUser } from "@/hooks/use-current-user";
+import {
+  DEFAULT_DRAWING_DISCIPLINE,
+  DRAWING_DISCIPLINES,
+  normalizeDrawingDiscipline,
+  type DrawingDiscipline,
+} from "@/lib/drawing-discipline";
 
 type ReviewItem = {
   _id: string;
@@ -48,6 +54,7 @@ export default function DrawingReviewsPage() {
   const [docNo, setDocNo] = useState("");
   const [drawingNo, setDrawingNo] = useState("");
   const [drawingName, setDrawingName] = useState("");
+  const [discipline, setDiscipline] = useState<DrawingDiscipline>(DEFAULT_DRAWING_DISCIPLINE);
   const [reviewerName, setReviewerName] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
@@ -105,6 +112,7 @@ export default function DrawingReviewsPage() {
           docNo,
           drawingNo,
           drawingName,
+          discipline,
           reviewerName,
         }),
       });
@@ -115,6 +123,7 @@ export default function DrawingReviewsPage() {
       setDocNo("");
       setDrawingNo("");
       setDrawingName("");
+      setDiscipline(DEFAULT_DRAWING_DISCIPLINE);
       setReviewerName("");
       setMessage("검토요청이 등록되었습니다.");
       await loadReviews(1);
@@ -183,10 +192,24 @@ export default function DrawingReviewsPage() {
       </div>
 
       {canWrite ? (
-        <form onSubmit={handleQuickCreate} className="grid grid-cols-1 gap-3 md:grid-cols-[180px_180px_1fr_180px_auto]">
+        <form onSubmit={handleQuickCreate} className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[180px_180px_1fr_140px_180px_auto]">
           <FormInput label="문서번호" value={docNo} onChange={(event) => setDocNo(event.target.value)} required />
           <FormInput label="도면번호" value={drawingNo} onChange={(event) => setDrawingNo(event.target.value)} required />
           <FormInput label="도면명" value={drawingName} onChange={(event) => setDrawingName(event.target.value)} required />
+          <label className="space-y-1">
+            <span className="block text-sm font-medium text-foreground">기술구분</span>
+            <select
+              value={discipline}
+              onChange={(event) => setDiscipline(normalizeDrawingDiscipline(event.target.value))}
+              className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
+            >
+              {DRAWING_DISCIPLINES.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
           <FormInput label="검토자" value={reviewerName} onChange={(event) => setReviewerName(event.target.value)} />
           <button
             type="submit"

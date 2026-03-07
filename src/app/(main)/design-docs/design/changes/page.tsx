@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { DataTable, FormInput, Pagination, StatusBadge } from "@/components/ui";
 import { hasMinRole, useCurrentUser } from "@/hooks/use-current-user";
 
 type ChangeItem = {
   _id: string;
   changeNo: string;
+  drawingId?: string | null;
   drawingNo: string;
   drawingName: string;
   location: string;
@@ -23,6 +24,19 @@ type ChangeResponse = {
   error?: string;
 };
 
+type DrawingOption = {
+  _id: string;
+  drawingNo: string;
+  drawingName: string;
+  location: string;
+};
+
+type DrawingLookupResponse = {
+  ok: boolean;
+  data: DrawingOption[];
+  error?: string;
+};
+
 export default function DesignChangesPage() {
   const { user, isLoading: isUserLoading } = useCurrentUser();
   const canManage = useMemo(() => hasMinRole(user.role, "manager"), [user.role]);
@@ -34,9 +48,13 @@ export default function DesignChangesPage() {
   const [totalPages, setTotalPages] = useState(1);
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [initialDrawingId, setInitialDrawingId] = useState("");
   const [changeNo, setChangeNo] = useState("");
+  const [drawingId, setDrawingId] = useState("");
   const [drawingNo, setDrawingNo] = useState("");
   const [drawingName, setDrawingName] = useState("");
+  const [drawingSearch, setDrawingSearch] = useState("");
+  const [drawingOptions, setDrawingOptions] = useState<DrawingOption[]>([]);
   const [location, setLocation] = useState("");
   const [reason, setReason] = useState("");
   const [status, setStatus] = useState<ChangeItem["status"]>("in_review");
@@ -45,6 +63,21 @@ export default function DesignChangesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const deferredDrawingSearch = useDeferredValue(drawingSearch);
+  const selectedDrawingOption = useMemo(() => {
+    if (!drawingId) {
+      return null;
+    }
+
+    return (
+      drawingOptions.find((item) => item._id === drawingId) ?? {
+        _id: drawingId,
+        drawingNo,
+        drawingName,
+        location,
+      }
+    );
+  }, [drawingId, drawingName, drawingNo, drawingOptions, location]);
 
   const loadItems = useCallback(
     async (nextPage: number) => {
@@ -74,15 +107,82 @@ export default function DesignChangesPage() {
     [keyword, statusFilter],
   );
 
+  const loadDrawings = useCallback(async (query: string) => {
+    if (!canManage) {
+      setDrawingOptions([]);
+      return;
+    }
+
+    try {
+      const params = new URLSearchParams({
+        page: "1",
+        limit: "100",
+        status: "all",
+        q: query,
+      });
+      const response = await fetch(`/api/drawings?${params.toString()}`, { cache: "no-store" });
+      const result = (await response.json()) as DrawingLookupResponse;
+      if (!result.ok) {
+        throw new Error(result.error ?? "도면 목록 조회 실패");
+      }
+      setDrawingOptions(Array.isArray(result.data) ? result.data : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "도면 목록 조회 실패");
+    }
+  }, [canManage]);
+
   useEffect(() => {
     void loadItems(1);
   }, [loadItems]);
 
+  useEffect(() => {
+    if (!canManage) {
+      return;
+    }
+
+    void loadDrawings(deferredDrawingSearch.trim());
+  }, [canManage, deferredDrawingSearch, loadDrawings]);
+
+  useEffect(() => {
+    if (drawingId || !drawingNo || drawingOptions.length === 0) {
+      return;
+    }
+
+    const matched = drawingOptions.find((item) => item.drawingNo === drawingNo);
+    if (!matched) {
+      return;
+    }
+
+    setDrawingId(matched._id);
+    setDrawingName(matched.drawingName);
+    if (!location) {
+      setLocation(matched.location);
+    }
+  }, [drawingId, drawingNo, drawingOptions, location]);
+
+  function handleSelectDrawing(nextDrawingId: string) {
+    setDrawingId(nextDrawingId);
+
+    const selected = drawingOptions.find((item) => item._id === nextDrawingId);
+    if (!selected) {
+      setDrawingNo("");
+      setDrawingName("");
+      return;
+    }
+
+    setDrawingNo(selected.drawingNo);
+    setDrawingName(selected.drawingName);
+    setLocation(selected.location);
+  }
+
   function resetForm() {
     setEditingId(null);
+    setInitialDrawingId("");
     setChangeNo("");
+    setDrawingId("");
     setDrawingNo("");
     setDrawingName("");
+    setDrawingSearch("");
     setLocation("");
     setReason("");
     setStatus("in_review");
@@ -90,9 +190,12 @@ export default function DesignChangesPage() {
 
   function handleEdit(item: ChangeItem) {
     setEditingId(item._id);
+    setInitialDrawingId(item.drawingId ?? "");
     setChangeNo(item.changeNo);
+    setDrawingId(item.drawingId ?? "");
     setDrawingNo(item.drawingNo);
     setDrawingName(item.drawingName);
+    setDrawingSearch(item.drawingNo);
     setLocation(item.location);
     setReason(item.reason);
     setStatus(item.status);
@@ -109,12 +212,25 @@ export default function DesignChangesPage() {
     setMessage(null);
     setIsSubmitting(true);
     try {
+      if (!drawingId) {
+        throw new Error("도면대장에서 기준 도면을 선택해 주세요.");
+      }
+
       const endpoint = editingId ? `/api/design/changes/${editingId}` : "/api/design/changes";
       const method = editingId ? "PATCH" : "POST";
+      const payload = {
+        changeNo,
+        ...(editingId
+          ? (drawingId && drawingId !== initialDrawingId ? { drawingId } : {})
+          : { drawingId }),
+        location,
+        reason,
+        status,
+      };
       const response = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ changeNo, drawingNo, drawingName, location, reason, status }),
+        body: JSON.stringify(payload),
       });
       const result = (await response.json()) as { ok: boolean; error?: string };
       if (!result.ok) {
@@ -182,34 +298,67 @@ export default function DesignChangesPage() {
       </div>
 
       {canManage ? (
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 md:grid-cols-[140px_140px_1fr_1fr_1fr_160px_auto_auto]">
-          <FormInput label="변경번호" value={changeNo} onChange={(event) => setChangeNo(event.target.value)} required />
-          <FormInput label="도면번호" value={drawingNo} onChange={(event) => setDrawingNo(event.target.value)} required />
-          <FormInput label="도면명" value={drawingName} onChange={(event) => setDrawingName(event.target.value)} required />
-          <FormInput label="위치" value={location} onChange={(event) => setLocation(event.target.value)} />
-          <FormInput label="변경사유" value={reason} onChange={(event) => setReason(event.target.value)} />
-          <label className="space-y-1">
-            <span className="block text-sm font-medium text-foreground">상태</span>
-            <select
-              value={status}
-              onChange={(event) => setStatus(event.target.value as ChangeItem["status"])}
-              className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
-            >
-              <option value="draft">임시저장</option>
-              <option value="in_review">검토중</option>
-              <option value="approved">승인</option>
-              <option value="rejected">반려</option>
-              <option value="completed">완료</option>
-            </select>
-          </label>
-          <button type="submit" disabled={isSubmitting} className="mt-6 rounded-md border border-border bg-background-soft px-4 py-2 text-sm font-medium text-foreground hover:bg-background-card disabled:opacity-60">
-            {editingId ? "수정" : "등록"}
-          </button>
-          {editingId ? (
-            <button type="button" onClick={resetForm} className="mt-6 rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft">
-              취소
-            </button>
-          ) : null}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[160px_minmax(220px,1fr)_minmax(300px,1.2fr)_160px] xl:items-end">
+            <FormInput label="변경번호" value={changeNo} onChange={(event) => setChangeNo(event.target.value)} required />
+            <FormInput
+              label="도면 검색"
+              value={drawingSearch}
+              onChange={(event) => setDrawingSearch(event.target.value)}
+              placeholder="도면번호 또는 도면명 검색"
+            />
+            <label className="space-y-1">
+              <span className="block text-sm font-medium text-foreground">도면 선택</span>
+              <select
+                value={drawingId}
+                onChange={(event) => handleSelectDrawing(event.target.value)}
+                className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
+              >
+                <option value="">도면대장에서 선택해 주세요.</option>
+                {selectedDrawingOption && !drawingOptions.some((item) => item._id === selectedDrawingOption._id) ? (
+                  <option value={selectedDrawingOption._id}>
+                    {selectedDrawingOption.drawingNo} · {selectedDrawingOption.drawingName}
+                  </option>
+                ) : null}
+                {drawingOptions.map((item) => (
+                  <option key={item._id} value={item._id}>
+                    {item.drawingNo} · {item.drawingName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="block text-sm font-medium text-foreground">상태</span>
+              <select
+                value={status}
+                onChange={(event) => setStatus(event.target.value as ChangeItem["status"])}
+                className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
+              >
+                <option value="draft">임시저장</option>
+                <option value="in_review">검토중</option>
+                <option value="approved">승인</option>
+                <option value="rejected">반려</option>
+                <option value="completed">완료</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[180px_minmax(260px,1fr)_200px_minmax(280px,1fr)_auto] xl:items-end">
+            <FormInput label="도면번호" value={drawingNo} readOnly disabled />
+            <FormInput label="도면명" value={drawingName} readOnly disabled />
+            <FormInput label="위치" value={location} onChange={(event) => setLocation(event.target.value)} />
+            <FormInput label="변경사유" value={reason} onChange={(event) => setReason(event.target.value)} />
+            <div className="flex flex-wrap items-end justify-end gap-2 md:col-span-2 xl:col-span-1">
+              <button type="submit" disabled={isSubmitting} className="rounded-md border border-border bg-background-soft px-4 py-2 text-sm font-medium text-foreground hover:bg-background-card disabled:opacity-60">
+                {editingId ? "수정" : "등록"}
+              </button>
+              {editingId ? (
+                <button type="button" onClick={resetForm} className="rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft">
+                  취소
+                </button>
+              ) : null}
+            </div>
+          </div>
         </form>
       ) : isUserLoading ? null : (
         <p className="text-sm text-foreground-muted">설계변경 등록/수정/삭제는 `manager` 이상 권한이 필요합니다.</p>
