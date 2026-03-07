@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { Modal } from "@/components/ui/modal";
 import { Pagination } from "@/components/ui/pagination";
+import { hasMinRole, useCurrentUser } from "@/hooks/use-current-user";
 
 type SiteData = {
   _id: string;
   siteCode: string;
   siteName: string;
   address: string;
-  status: string;
+  status: "active" | "completed" | "suspended";
   startDate: string;
   endDate: string;
   description: string;
@@ -26,9 +29,33 @@ type HistoryRow = {
 
 const SITE_ID_KEY = "pmis:siteId";
 
+type SiteOverviewForm = {
+  siteName: string;
+  address: string;
+  status: SiteData["status"];
+  startDate: string;
+  endDate: string;
+  description: string;
+};
+
 function getSiteId() {
   if (typeof window === "undefined") return "";
   return localStorage.getItem(SITE_ID_KEY) ?? "";
+}
+
+function normalizeDateInput(value?: string | null) {
+  return value ? String(value).slice(0, 10) : "";
+}
+
+function toSiteForm(site: SiteData): SiteOverviewForm {
+  return {
+    siteName: site.siteName,
+    address: site.address ?? "",
+    status: site.status,
+    startDate: normalizeDateInput(site.startDate),
+    endDate: normalizeDateInput(site.endDate),
+    description: site.description ?? "",
+  };
 }
 
 const historyColumns: DataTableColumn<HistoryRow>[] = [
@@ -44,10 +71,23 @@ const historyColumns: DataTableColumn<HistoryRow>[] = [
 ];
 
 export default function OverviewPage() {
+  const router = useRouter();
+  const { user } = useCurrentUser();
+  const canEditSite = useMemo(() => hasMinRole(user.role, "site_admin"), [user.role]);
+  const canDeleteSite = useMemo(() => hasMinRole(user.role, "super_admin"), [user.role]);
   const [site, setSite] = useState<SiteData | null>(null);
   const [loading, setLoading] = useState<boolean>(() => Boolean(getSiteId()));
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ siteName: "", address: "", description: "" });
+  const [form, setForm] = useState<SiteOverviewForm>({
+    siteName: "",
+    address: "",
+    status: "active",
+    startDate: "",
+    endDate: "",
+    description: "",
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   /* history */
   const [history, setHistory] = useState<HistoryRow[]>([]);
@@ -64,11 +104,7 @@ export default function OverviewPage() {
       .then((res) => {
         if (res.ok) {
           setSite(res.data);
-          setForm({
-            siteName: res.data.siteName,
-            address: res.data.address ?? "",
-            description: res.data.description ?? "",
-          });
+          setForm(toSiteForm(res.data));
         }
       })
       .finally(() => setLoading(false));
@@ -90,6 +126,9 @@ export default function OverviewPage() {
   useEffect(() => { fetchHistory(histPage); }, [histPage, fetchHistory]);
 
   async function handleSave() {
+    if (!canEditSite) {
+      return;
+    }
     const siteId = getSiteId();
     const res = await fetch(`/api/sites/${siteId}`, {
       method: "PATCH",
@@ -99,7 +138,41 @@ export default function OverviewPage() {
     const json = await res.json();
     if (json.ok) {
       setSite(json.data);
+      setForm(toSiteForm(json.data));
       setEditing(false);
+    }
+  }
+
+  function closeDeleteModal() {
+    if (isDeleting) {
+      return;
+    }
+    setIsDeleteModalOpen(false);
+  }
+
+  async function handleDelete() {
+    if (!canDeleteSite || !site) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/sites/${site._id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        throw new Error(json.error ?? "현장 삭제 실패");
+      }
+
+      localStorage.removeItem(SITE_ID_KEY);
+      document.cookie = "pmis_site_id=; path=/; max-age=0";
+      setIsDeleteModalOpen(false);
+      setSite(null);
+      router.push("/system-admin/sites");
+      router.refresh();
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -127,15 +200,28 @@ export default function OverviewPage() {
       {/* ── 현장 개요 ── */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">현장 개요</h1>
-        {!editing && (
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            className="rounded-md bg-[#ecebe8] px-4 py-1.5 text-sm font-medium text-foreground hover:bg-[#e2e0db]"
-          >
-            수정
-          </button>
-        )}
+        {!editing ? (
+          <div className="flex items-center gap-2">
+            {canEditSite ? (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="rounded-md bg-[#ecebe8] px-4 py-1.5 text-sm font-medium text-foreground hover:bg-[#e2e0db]"
+              >
+                수정
+              </button>
+            ) : null}
+            {canDeleteSite ? (
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(true)}
+                className="rounded-md border border-danger/40 bg-danger/10 px-4 py-1.5 text-sm font-medium text-danger hover:bg-danger/15"
+              >
+                삭제
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="rounded-lg border border-border bg-background-card p-6">
@@ -157,6 +243,38 @@ export default function OverviewPage() {
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
               />
             </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-foreground">상태</label>
+                <select
+                  className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/15"
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value as SiteData["status"] })}
+                >
+                  <option value="active">진행중</option>
+                  <option value="completed">완료</option>
+                  <option value="suspended">중지</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-foreground">착공일</label>
+                <input
+                  type="date"
+                  className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/15"
+                  value={form.startDate}
+                  onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-foreground">준공일</label>
+                <input
+                  type="date"
+                  className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/15"
+                  value={form.endDate}
+                  onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+                />
+              </div>
+            </div>
             <div className="space-y-1">
               <label className="block text-sm font-medium text-foreground">설명</label>
               <textarea
@@ -168,7 +286,10 @@ export default function OverviewPage() {
             <div className="flex justify-end gap-2 border-t border-border pt-4">
               <button
                 type="button"
-                onClick={() => setEditing(false)}
+                onClick={() => {
+                  setForm(toSiteForm(site));
+                  setEditing(false);
+                }}
                 className="rounded-md border border-border px-4 py-1.5 text-sm text-foreground hover:bg-background-soft"
               >
                 취소
@@ -266,6 +387,39 @@ export default function OverviewPage() {
 
       <DataTable columns={historyColumns} data={history} rowKey={(row) => row._id} />
       {histTotalPages > 1 && <Pagination page={histPage} totalPages={histTotalPages} onPageChange={setHistPage} />}
+
+      <Modal open={isDeleteModalOpen} title="현장 삭제 확인" onClose={closeDeleteModal}>
+        <div className="space-y-4">
+          <div className="rounded-md border border-border bg-background-soft p-3">
+            <p className="text-sm text-foreground">
+              <span className="font-medium">{site?.siteCode}</span>
+              {" · "}
+              <span>{site?.siteName}</span>
+            </p>
+            <p className="mt-1 text-xs text-foreground-muted">
+              삭제 후에는 현장 목록에서 제외되고, 연결된 활성 사용자 배정도 함께 비활성화됩니다.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              disabled={isDeleting}
+              onClick={closeDeleteModal}
+              className="rounded-md border border-border px-4 py-1.5 text-sm text-foreground hover:bg-background-soft disabled:opacity-60"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              disabled={isDeleting}
+              onClick={() => void handleDelete()}
+              className="rounded-md border border-danger/40 bg-danger/10 px-4 py-1.5 text-sm font-medium text-danger hover:bg-danger/15 disabled:opacity-60"
+            >
+              {isDeleting ? "삭제 중..." : "삭제"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </section>
   );
 }

@@ -2,11 +2,13 @@ import mongoose from "mongoose";
 import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/db";
 import Site from "@/models/Site";
+import type { ISite } from "@/models/Site";
 import SiteMembership from "@/models/SiteMembership";
 import { success } from "@/lib/api-response";
 import { ApiError, handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { requireRole } from "@/lib/permissions";
 import { logCreate } from "@/lib/audit-logger";
+import { getNextSiteCode } from "@/lib/site-code";
 
 type SiteStatus = "active" | "completed" | "suspended";
 
@@ -25,6 +27,51 @@ function parseDate(value: unknown): Date | undefined {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
+function normalizeProjectManager(
+  value: unknown,
+): { _id: string; name: string; email: string } | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const record = value as { _id?: unknown; name?: unknown; email?: unknown };
+  if (!record._id) {
+    return null;
+  }
+
+  return {
+    _id: String(record._id),
+    name: String(record.name ?? ""),
+    email: String(record.email ?? ""),
+  };
+}
+
+async function generateNextSiteCode() {
+  const existingSites = await Site.find({ isDeleted: false }).select({ siteCode: 1, _id: 0 }).lean();
+  return getNextSiteCode(existingSites.map((site) => String(site.siteCode ?? "")));
+}
+
+function isDuplicateSiteCodeError(err: unknown) {
+  if (!err || typeof err !== "object") {
+    return false;
+  }
+
+  const code = "code" in err ? err.code : undefined;
+  const keyPattern = "keyPattern" in err ? err.keyPattern : undefined;
+  const keyValue = "keyValue" in err ? err.keyValue : undefined;
+
+  return (
+    code === 11000 &&
+    (
+      (typeof keyPattern === "object" &&
+        keyPattern !== null &&
+        "siteCode" in keyPattern &&
+        keyPattern.siteCode === 1) ||
+      (typeof keyValue === "object" && keyValue !== null && "siteCode" in keyValue)
+    )
+  );
+}
+
 function toSiteSummary(site: {
   _id: unknown;
   siteCode: string;
@@ -34,6 +81,7 @@ function toSiteSummary(site: {
   startDate?: Date;
   endDate?: Date;
   description?: string;
+  projectManager?: unknown;
 }) {
   return {
     _id: String(site._id),
@@ -44,6 +92,7 @@ function toSiteSummary(site: {
     startDate: site.startDate ?? null,
     endDate: site.endDate ?? null,
     description: site.description ?? "",
+    projectManager: normalizeProjectManager(site.projectManager),
   };
 }
 
@@ -53,7 +102,10 @@ export async function GET() {
     await connectDB();
 
     if (requester.role === "super_admin" || requester.role === "dev_bypass") {
-      const allSites = await Site.find({ isDeleted: false }).sort({ createdAt: 1 }).lean();
+      const allSites = await Site.find({ isDeleted: false })
+        .populate("projectManager", "name email")
+        .sort({ createdAt: 1 })
+        .lean();
       return success(allSites.map(toSiteSummary));
     }
 
@@ -75,7 +127,10 @@ export async function GET() {
       return success([]);
     }
 
-    const sites = await Site.find({ _id: { $in: siteIds }, isDeleted: false }).sort({ createdAt: 1 }).lean();
+    const sites = await Site.find({ _id: { $in: siteIds }, isDeleted: false })
+      .populate("projectManager", "name email")
+      .sort({ createdAt: 1 })
+      .lean();
     return success(sites.map(toSiteSummary));
   } catch (err) {
     return handleApiError(err);
@@ -88,9 +143,6 @@ export async function POST(request: NextRequest) {
     await connectDB();
 
     const body = await request.json();
-    const siteCode = String(body.siteCode ?? "")
-      .trim()
-      .toUpperCase();
     const siteName = String(body.siteName ?? "").trim();
     const address = String(body.address ?? "").trim();
     const description = String(body.description ?? "").trim();
@@ -98,26 +150,40 @@ export async function POST(request: NextRequest) {
     const startDate = parseDate(body.startDate);
     const endDate = parseDate(body.endDate);
 
-    if (!siteCode || !siteName) {
-      throw VALIDATION_ERROR("siteCode, siteName은 필수입니다.");
+    if (!siteName) {
+      throw VALIDATION_ERROR("siteName은 필수입니다.");
     }
 
-    const duplicated = await Site.findOne({ siteCode, isDeleted: false }).select({ _id: 1 }).lean();
-    if (duplicated) {
-      throw new ApiError("동일한 현장코드가 이미 존재합니다.", 409, "DUPLICATE_SITE_CODE");
+    let siteCode = "";
+    let site: mongoose.HydratedDocument<ISite> | null = null;
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      siteCode = await generateNextSiteCode();
+
+      try {
+        site = await Site.create({
+          siteCode,
+          siteName,
+          address: address || undefined,
+          description: description || undefined,
+          status,
+          startDate,
+          endDate,
+          createdBy: requester.userId ?? undefined,
+          updatedBy: requester.userId ?? undefined,
+        });
+        break;
+      } catch (err) {
+        if (isDuplicateSiteCodeError(err) && attempt < 4) {
+          continue;
+        }
+        throw err;
+      }
     }
 
-    const site = await Site.create({
-      siteCode,
-      siteName,
-      address: address || undefined,
-      description: description || undefined,
-      status,
-      startDate,
-      endDate,
-      createdBy: requester.userId ?? undefined,
-      updatedBy: requester.userId ?? undefined,
-    });
+    if (!site) {
+      throw new ApiError("현장코드 자동 생성에 실패했습니다.", 500, "SITE_CODE_GENERATION_FAILED");
+    }
 
     if (requester.userId && mongoose.Types.ObjectId.isValid(requester.userId)) {
       await SiteMembership.findOneAndUpdate(
