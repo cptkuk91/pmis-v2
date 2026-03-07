@@ -4,6 +4,7 @@ import SafetyRegulationItem from "@/models/SafetyRegulationItem";
 import { success, paginated } from "@/lib/api-response";
 import { handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { logCreate } from "@/lib/audit-logger";
+import { isSafetyRegulationCategory } from "@/lib/safety-regulation-category";
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,10 +30,31 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
-    const body = await request.json();
-    const doc = await SafetyRegulationItem.create(body);
+    const body = (await request.json()) as Record<string, unknown>;
+    const siteId = String(body.siteId ?? "").trim();
+    const category = String(body.category ?? "").trim();
+    const title = String(body.title ?? "").trim();
 
-    await logCreate(body.siteId, "safety_regulation", String(doc._id), { userId: null, userName: "system" });
+    if (!siteId) {
+      throw VALIDATION_ERROR("siteId가 필요합니다.");
+    }
+    if (!isSafetyRegulationCategory(category)) {
+      throw VALIDATION_ERROR("category 값이 올바르지 않습니다.");
+    }
+    if (!title) {
+      throw VALIDATION_ERROR("title은 필수입니다.");
+    }
+
+    const doc = await SafetyRegulationItem.create({
+      siteId,
+      category,
+      title,
+      content: String(body.content ?? "").trim(),
+      reference: String(body.reference ?? "").trim(),
+      sortOrder: Number(body.sortOrder ?? 0) || 0,
+    });
+
+    await logCreate(siteId, "safety_regulation", String(doc._id), { userId: null, userName: "system" });
 
     return success(doc);
   } catch (err) {

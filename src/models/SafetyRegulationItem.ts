@@ -1,5 +1,9 @@
 import mongoose, { Schema, Document } from "mongoose";
 import { baseFieldsPlugin } from "@/lib/mongoose-plugins";
+import {
+  DEFAULT_SAFETY_REGULATION_CATEGORY,
+  SAFETY_REGULATION_CATEGORIES,
+} from "@/lib/safety-regulation-category";
 
 export interface ISafetyRegulationItem extends Document {
   siteId: string;
@@ -9,12 +13,20 @@ export interface ISafetyRegulationItem extends Document {
   reference: string;
   sortOrder: number;
   isActive: boolean;
+  isDeleted: boolean;
+  deletedAt?: Date;
+  softDelete: () => Promise<ISafetyRegulationItem>;
 }
 
 const SafetyRegulationItemSchema = new Schema<ISafetyRegulationItem>(
   {
     siteId: { type: String, required: true, index: true },
-    category: { type: String, required: true },
+    category: {
+      type: String,
+      required: true,
+      enum: SAFETY_REGULATION_CATEGORIES,
+      default: DEFAULT_SAFETY_REGULATION_CATEGORY,
+    },
     title: { type: String, required: true },
     content: { type: String, default: "" },
     reference: { type: String, default: "" },
