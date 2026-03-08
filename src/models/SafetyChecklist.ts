@@ -5,6 +5,7 @@ export interface ISafetyChecklist extends Document {
   siteId: string;
   title: string;
   checkDate: Date;
+  inspectorUserId?: mongoose.Types.ObjectId;
   inspector: string;
   category: string;
   items: { checkItem: string; result: "pass" | "fail" | "na"; remarks: string }[];
@@ -17,6 +18,7 @@ const SafetyChecklistSchema = new Schema<ISafetyChecklist>(
     siteId: { type: String, required: true, index: true },
     title: { type: String, required: true },
     checkDate: { type: Date, required: true },
+    inspectorUserId: { type: Schema.Types.ObjectId, ref: "User" },
     inspector: { type: String, required: true },
     category: { type: String, default: "" },
     items: [

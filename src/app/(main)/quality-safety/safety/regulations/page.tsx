@@ -334,7 +334,13 @@ export default function SafetyRegulationsPage() {
       <DataTable columns={columns} data={data} rowKey={(row) => row._id} />
       {totalPages > 1 && <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />}
       <Modal open={Boolean(editingId)} title="안전 규정 수정" onClose={handleCancelEdit}>
-        <div className="space-y-4">
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleUpdate();
+          }}
+        >
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <label className="space-y-1">
               <span className="block text-sm font-medium text-foreground">분류 *</span>
@@ -404,15 +410,14 @@ export default function SafetyRegulationsPage() {
               취소
             </button>
             <button
-              type="button"
-              onClick={() => void handleUpdate()}
+              type="submit"
               disabled={isUpdating}
               className="rounded-md border border-border bg-background-soft px-4 py-2 text-sm font-medium text-foreground hover:bg-background-card disabled:opacity-60"
             >
               {isUpdating ? "저장 중..." : "저장"}
             </button>
           </div>
-        </div>
+        </form>
       </Modal>
       <Modal open={Boolean(deleteTarget)} title="안전 규정 삭제" onClose={handleCloseDeleteModal}>
         <div className="space-y-4">

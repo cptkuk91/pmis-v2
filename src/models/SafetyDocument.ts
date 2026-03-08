@@ -11,6 +11,9 @@ export interface ISafetyDocument extends Document {
   status: "draft" | "in_review" | "approved" | "rejected";
   approvedAt?: Date;
   approvedBy?: mongoose.Types.ObjectId;
+  isDeleted: boolean;
+  deletedAt?: Date;
+  softDelete: () => Promise<ISafetyDocument>;
 }
 
 const SafetyDocumentSchema = new Schema<ISafetyDocument>(
