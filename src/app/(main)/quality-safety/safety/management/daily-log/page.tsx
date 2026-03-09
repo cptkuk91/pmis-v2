@@ -198,7 +198,7 @@ export default function SafetyDailyLogPage() {
       <header>
         <h1 className="text-xl font-semibold text-foreground">안전 일지</h1>
         <p className="mt-1 text-sm text-foreground-muted">
-          안전팀이 일지를 작성하고 현장소장 확인용으로 보고합니다.
+          안전팀이 일지를 작성하고 현장소장 확인용으로 보고합니다. (현재 시스템 권한상 `manager` 이상 작성 가능)
         </p>
         {items.length > 0 ? (
           <button
@@ -308,7 +308,7 @@ export default function SafetyDailyLogPage() {
           </div>
         </form>
       ) : isUserLoading ? null : (
-        <p className="text-sm text-foreground-muted">안전 일지 등록은 `manager` 이상 권한이 필요합니다.</p>
+        <p className="text-sm text-foreground-muted">안전 일지 등록은 현재 시스템 권한상 `manager` 이상만 가능합니다.</p>
       )}
 
       {message ? <p className="text-sm text-success">{message}</p> : null}
