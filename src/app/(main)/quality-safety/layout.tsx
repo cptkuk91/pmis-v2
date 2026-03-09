@@ -38,7 +38,7 @@ const menuGroups = [
     label: "교육·보건",
     items: [
       { href: "/quality-safety/safety/education/training", label: "정기 교육" },
-      { href: "/quality-safety/safety/education/new-worker", label: "신규자 온보딩" },
+      { href: "/quality-safety/safety/education/new-worker", label: "신규교육 대상자" },
       { href: "/quality-safety/safety/education/equipment", label: "보호구 지급" },
       { href: "/quality-safety/safety/education/health", label: "건강 관리" },
       { href: "/quality-safety/safety/education/accident-free", label: "무재해 현황" },

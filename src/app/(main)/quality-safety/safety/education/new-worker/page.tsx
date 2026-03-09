@@ -26,8 +26,8 @@ export default function NewWorkerEducationPage() {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-xl font-semibold text-foreground">신규교육대상자</h1>
-      <p className="text-sm text-foreground-muted">최근 30일 이내 최초 출역한 근로자 목록입니다.</p>
+      <h1 className="text-xl font-semibold text-foreground">신규교육 대상자</h1>
+      <p className="text-sm text-foreground-muted">최근 30일 이내 최초 출역일 기준 신규교육 대상자 목록입니다.</p>
       <DataTable columns={columns} data={data} rowKey={(row) => row._id} />
     </section>
   );

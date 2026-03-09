@@ -222,7 +222,7 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 | 메뉴 | 경로 | 설명 |
 |------|------|------|
 | 정기 교육 | `/quality-safety/safety/education/training` | 안전교육 실시 기록 관리 |
-| 신규자 온보딩 | `/quality-safety/safety/education/new-worker` | 신규자 교육 이수 현황 |
+| 신규교육 대상자 | `/quality-safety/safety/education/new-worker` | 최근 30일 이내 최초 출역 기준 신규교육 대상자 조회 |
 | 보호구 지급 | `/quality-safety/safety/education/equipment` | 중장비 교육 기록 |
 | 건강 관리 | `/quality-safety/safety/education/health` | 보건 관련 교육 기록 |
 | 무재해 현황 | `/quality-safety/safety/education/accident-free` | 무재해 달성 현황 |

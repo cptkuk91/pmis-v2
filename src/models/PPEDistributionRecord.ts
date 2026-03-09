@@ -1,12 +1,18 @@
 import mongoose, { Schema, Document } from "mongoose";
 import { baseFieldsPlugin } from "@/lib/mongoose-plugins";
+import {
+  PPE_ITEM_OPTIONS,
+  PPE_UNIT_OPTIONS,
+  type PPEItemName,
+  type PPEUnit,
+} from "@/lib/ppe-options";
 
 export interface IPPEDistributionRecord extends Document {
   siteId: string;
-  itemName: string;
+  itemName: PPEItemName;
   specification: string;
   quantity: number;
-  unit: string;
+  unit: PPEUnit;
   recipientName: string;
   recipientCompany: string;
   distributionDate: Date;
@@ -16,10 +22,10 @@ export interface IPPEDistributionRecord extends Document {
 const PPEDistributionRecordSchema = new Schema<IPPEDistributionRecord>(
   {
     siteId: { type: String, required: true, index: true },
-    itemName: { type: String, required: true },
+    itemName: { type: String, enum: PPE_ITEM_OPTIONS, required: true },
     specification: { type: String, default: "" },
     quantity: { type: Number, default: 0 },
-    unit: { type: String, default: "EA" },
+    unit: { type: String, enum: PPE_UNIT_OPTIONS, default: "EA" },
     recipientName: { type: String, required: true },
     recipientCompany: { type: String, default: "" },
     distributionDate: { type: Date, required: true },
