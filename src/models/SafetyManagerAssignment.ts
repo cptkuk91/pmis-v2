@@ -3,6 +3,8 @@ import { baseFieldsPlugin } from "@/lib/mongoose-plugins";
 
 export interface ISafetyManagerAssignment extends Document {
   siteId: string;
+  userId?: mongoose.Types.ObjectId;
+  sitePersonnelId?: mongoose.Types.ObjectId;
   managerName: string;
   position: string;
   certificationNo: string;
@@ -15,6 +17,8 @@ export interface ISafetyManagerAssignment extends Document {
 const SafetyManagerAssignmentSchema = new Schema<ISafetyManagerAssignment>(
   {
     siteId: { type: String, required: true, index: true },
+    userId: { type: Schema.Types.ObjectId, ref: "User" },
+    sitePersonnelId: { type: Schema.Types.ObjectId, ref: "SitePersonnel" },
     managerName: { type: String, required: true },
     position: { type: String, default: "" },
     certificationNo: { type: String, default: "" },

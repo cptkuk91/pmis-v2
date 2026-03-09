@@ -1,7 +1,9 @@
 import { NextRequest } from "next/server";
+import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import GovernmentReport from "@/models/GovernmentReport";
 import SafetyManagerAssignment from "@/models/SafetyManagerAssignment";
+import SiteMembership from "@/models/SiteMembership";
 import { success } from "@/lib/api-response";
 import { handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { logCreate } from "@/lib/audit-logger";
@@ -9,6 +11,37 @@ import { isGovernmentReportAgency, isGovernmentReportType } from "@/lib/governme
 
 function isReportStatus(value: string): value is "pending" | "submitted" | "completed" {
   return value === "pending" || value === "submitted" || value === "completed";
+}
+
+async function resolveMember(siteId: string, userIdRaw: unknown) {
+  const userId = String(userIdRaw ?? "").trim();
+  if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+    throw VALIDATION_ERROR("userId 선택이 필요합니다.");
+  }
+
+  const membership = await SiteMembership.findOne({
+    siteId: new mongoose.Types.ObjectId(siteId),
+    userId: new mongoose.Types.ObjectId(userId),
+    isActive: true,
+    isDeleted: false,
+  })
+    .populate("userId", "name isActive isDeleted")
+    .select({ userId: 1 })
+    .lean();
+
+  const user =
+    membership?.userId && typeof membership.userId === "object"
+      ? (membership.userId as { _id?: unknown; name?: string; isActive?: boolean; isDeleted?: boolean })
+      : null;
+
+  if (!membership || !user?._id || !user.name || !user.isActive || user.isDeleted) {
+    throw VALIDATION_ERROR("선택한 현장 사용자를 찾을 수 없습니다.");
+  }
+
+  return {
+    userId: String(user._id),
+    managerName: String(user.name).trim(),
+  };
 }
 
 export async function GET(request: NextRequest) {
@@ -59,20 +92,24 @@ export async function POST(request: NextRequest) {
       await logCreate(siteId, "safety_management_setup", String(doc._id), { userId: null, userName: "system" });
       return success(doc);
     } else if (type === "assignment") {
-      const managerName = String(data.managerName ?? "").trim();
       const assignedDate = new Date(String(data.assignedDate ?? ""));
 
       if (!siteId) {
         throw VALIDATION_ERROR("siteId가 필요합니다.");
       }
-      if (!managerName) {
-        throw VALIDATION_ERROR("managerName은 필수입니다.");
-      }
       if (Number.isNaN(assignedDate.getTime())) {
         throw VALIDATION_ERROR("assignedDate 형식이 올바르지 않습니다.");
       }
 
-      const doc = await SafetyManagerAssignment.create(data);
+      const member = await resolveMember(siteId, data.userId);
+
+      const doc = await SafetyManagerAssignment.create({
+        ...data,
+        userId: new mongoose.Types.ObjectId(member.userId),
+        managerName: member.managerName,
+        position: String(data.position ?? "").trim(),
+        role: String(data.role ?? "").trim(),
+      });
       await logCreate(siteId, "safety_management_setup", String(doc._id), { userId: null, userName: "system" });
       return success(doc);
     }

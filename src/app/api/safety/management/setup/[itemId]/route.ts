@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import GovernmentReport from "@/models/GovernmentReport";
 import SafetyManagerAssignment from "@/models/SafetyManagerAssignment";
+import SiteMembership from "@/models/SiteMembership";
 import { success } from "@/lib/api-response";
 import { handleApiError, NOT_FOUND, VALIDATION_ERROR } from "@/lib/api-error";
 import { logDelete, logUpdate } from "@/lib/audit-logger";
@@ -30,6 +31,37 @@ function parseDate(value: unknown, fieldName: string): Date {
     throw VALIDATION_ERROR(`${fieldName} 형식이 올바르지 않습니다.`);
   }
   return parsed;
+}
+
+async function resolveMember(siteId: string, userIdRaw: unknown) {
+  const userId = String(userIdRaw ?? "").trim();
+  if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+    throw VALIDATION_ERROR("userId 선택이 필요합니다.");
+  }
+
+  const membership = await SiteMembership.findOne({
+    siteId: new mongoose.Types.ObjectId(siteId),
+    userId: new mongoose.Types.ObjectId(userId),
+    isActive: true,
+    isDeleted: false,
+  })
+    .populate("userId", "name isActive isDeleted")
+    .select({ userId: 1 })
+    .lean();
+
+  const user =
+    membership?.userId && typeof membership.userId === "object"
+      ? (membership.userId as { _id?: unknown; name?: string; isActive?: boolean; isDeleted?: boolean })
+      : null;
+
+  if (!membership || !user?._id || !user.name || !user.isActive || user.isDeleted) {
+    throw VALIDATION_ERROR("선택한 현장 사용자를 찾을 수 없습니다.");
+  }
+
+  return {
+    userId: String(user._id),
+    managerName: String(user.name).trim(),
+  };
 }
 
 export async function PATCH(request: NextRequest, { params }: Params) {
@@ -84,19 +116,25 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       return success(item);
     }
 
-    const managerName = String(body.managerName ?? "").trim();
-    if (!managerName) {
-      throw VALIDATION_ERROR("managerName은 필수입니다.");
-    }
-
     const item = await SafetyManagerAssignment.findOne({ _id: itemId, siteId, isActive: true });
     if (!item) {
       throw NOT_FOUND("안전관리자 선임");
     }
 
-    item.managerName = managerName;
-    item.position = String(body.position ?? "").trim();
-    item.role = String(body.role ?? "").trim();
+    const userIdRaw = String(body.userId ?? "").trim();
+    if (userIdRaw) {
+      const member = await resolveMember(siteId, userIdRaw);
+      item.userId = new mongoose.Types.ObjectId(member.userId);
+      item.sitePersonnelId = undefined;
+      item.managerName = member.managerName;
+    } else if (!item.userId && !item.sitePersonnelId) {
+      item.managerName = String(body.managerName ?? item.managerName).trim();
+      if (!item.managerName) {
+        throw VALIDATION_ERROR("userId 선택이 필요합니다.");
+      }
+    }
+    item.position = String(body.position ?? item.position).trim();
+    item.role = String(body.role ?? item.role).trim();
     item.certificationNo = String(body.certificationNo ?? "").trim();
     item.assignedDate = parseDate(body.assignedDate, "선임일");
     await item.save();

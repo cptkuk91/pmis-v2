@@ -25,11 +25,21 @@ type ReportRow = {
 
 type AssignmentRow = {
   _id: string;
+  userId?: string | null;
+  sitePersonnelId?: string | null;
   managerName: string;
   position: string;
   certificationNo: string;
   assignedDate: string;
   role: string;
+};
+
+type SiteMemberOption = {
+  _id: string;
+  name: string;
+  email: string;
+  role: "super_admin" | "site_admin" | "manager" | "viewer";
+  membershipRole: "site_admin" | "manager" | "viewer";
 };
 
 type ReportFormState = {
@@ -41,6 +51,7 @@ type ReportFormState = {
 };
 
 type AssignmentFormState = {
+  userId: string;
   managerName: string;
   position: string;
   certificationNo: string;
@@ -55,6 +66,17 @@ type DeleteTarget = {
 };
 
 const SITE_ID_KEY = "pmis:siteId";
+const membershipRoleLabel: Record<SiteMemberOption["membershipRole"], string> = {
+  site_admin: "현장관리자",
+  manager: "관리자",
+  viewer: "열람",
+};
+const userRoleLabel: Record<SiteMemberOption["role"], string> = {
+  super_admin: "최고관리자",
+  site_admin: "현장관리자",
+  manager: "관리자",
+  viewer: "열람",
+};
 const statusLabel: Record<ReportStatus, string> = {
   pending: "대기",
   submitted: "제출",
@@ -75,12 +97,33 @@ const emptyReportForm = (): ReportFormState => ({
 });
 
 const emptyAssignmentForm = (): AssignmentFormState => ({
+  userId: "",
   managerName: "",
   position: "",
   certificationNo: "",
   assignedDate: "",
   role: "",
 });
+
+function memberSummary(item: SiteMemberOption | null, fallbackName = ""): string {
+  if (item) {
+    return item.email ? `${item.name} · ${item.email}` : item.name;
+  }
+  return fallbackName;
+}
+
+function findUniqueMemberMatch(
+  name: string,
+  options: SiteMemberOption[],
+): SiteMemberOption | null {
+  const normalizedName = name.trim().toLowerCase();
+  if (!normalizedName) {
+    return null;
+  }
+
+  const byName = options.filter((item) => item.name.trim().toLowerCase() === normalizedName);
+  return byName.length === 1 ? byName[0] : null;
+}
 
 function EditIcon() {
   return (
@@ -135,11 +178,32 @@ export default function SafetyManagementSetupPage() {
   const [editReportForm, setEditReportForm] = useState<ReportFormState>(emptyReportForm);
   const [editAssignmentForm, setEditAssignmentForm] = useState<AssignmentFormState>(emptyAssignmentForm);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [memberOptions, setMemberOptions] = useState<SiteMemberOption[]>([]);
+  const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
+  const [memberModalTarget, setMemberModalTarget] = useState<"create" | "edit" | null>(null);
+  const [memberQuery, setMemberQuery] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isMemberLoading, setIsMemberLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  const selectedMember = memberOptions.find((item) => item._id === assignForm.userId) ?? null;
+  const editSelectedMember = memberOptions.find((item) => item._id === editAssignmentForm.userId) ?? null;
+  const filteredMembers = memberOptions.filter((item) => {
+    const keyword = memberQuery.trim().toLowerCase();
+    if (!keyword) {
+      return true;
+    }
+
+    return (
+      String(item.name ?? "").toLowerCase().includes(keyword) ||
+      String(item.email ?? "").toLowerCase().includes(keyword) ||
+      String(item.role ?? "").toLowerCase().includes(keyword) ||
+      membershipRoleLabel[item.membershipRole].toLowerCase().includes(keyword)
+    );
+  });
 
   const fetchData = useCallback(async () => {
     const siteId = localStorage.getItem(SITE_ID_KEY) ?? "";
@@ -163,6 +227,33 @@ export default function SafetyManagementSetupPage() {
     setAssignments(Array.isArray(result.data?.assignments) ? result.data?.assignments : []);
   }, []);
 
+  const loadMembers = useCallback(async () => {
+    const siteId = localStorage.getItem(SITE_ID_KEY) ?? "";
+    if (!siteId) {
+      return;
+    }
+
+    setIsMemberLoading(true);
+    try {
+      const response = await fetch(`/api/sites/members?siteId=${siteId}`, {
+        cache: "no-store",
+      });
+      const result = (await response.json()) as {
+        ok: boolean;
+        data?: SiteMemberOption[];
+        error?: string;
+      };
+      if (!result.ok) {
+        throw new Error(result.error ?? "현장 사용자 조회 실패");
+      }
+      setMemberOptions(Array.isArray(result.data) ? result.data : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "현장 사용자 조회 실패");
+    } finally {
+      setIsMemberLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void (async () => {
       try {
@@ -173,6 +264,52 @@ export default function SafetyManagementSetupPage() {
       }
     })();
   }, [fetchData]);
+
+  useEffect(() => {
+    if (!showForm || tab !== "assignment") {
+      return;
+    }
+    void loadMembers();
+  }, [showForm, tab, loadMembers]);
+
+  useEffect(() => {
+    if (!editingAssignmentId) {
+      return;
+    }
+    void loadMembers();
+  }, [editingAssignmentId, loadMembers]);
+
+  useEffect(() => {
+    if (
+      !editingAssignmentId ||
+      editAssignmentForm.userId ||
+      !editAssignmentForm.managerName ||
+      memberOptions.length === 0
+    ) {
+      return;
+    }
+
+    const matched = findUniqueMemberMatch(editAssignmentForm.managerName, memberOptions);
+    if (!matched) {
+      return;
+    }
+
+    setEditAssignmentForm((prev) => {
+      if (prev.userId || prev.managerName !== editAssignmentForm.managerName) {
+        return prev;
+      }
+      return {
+        ...prev,
+        userId: matched._id,
+        managerName: matched.name,
+      };
+    });
+  }, [
+    editingAssignmentId,
+    editAssignmentForm.userId,
+    editAssignmentForm.managerName,
+    memberOptions,
+  ]);
 
   async function handleSubmit() {
     const siteId = localStorage.getItem(SITE_ID_KEY) ?? "";
@@ -216,6 +353,43 @@ export default function SafetyManagementSetupPage() {
     }
   }
 
+  function handleOpenMemberModal(target: "create" | "edit") {
+    setMemberModalTarget(target);
+    setMemberQuery("");
+    setIsMemberModalOpen(true);
+    if (memberOptions.length === 0) {
+      void loadMembers();
+    }
+  }
+
+  function handleCloseMemberModal() {
+    if (isMemberLoading) {
+      return;
+    }
+    setIsMemberModalOpen(false);
+    setMemberModalTarget(null);
+    setMemberQuery("");
+  }
+
+  function handleSelectMember(item: SiteMemberOption) {
+    if (memberModalTarget === "edit") {
+      setEditAssignmentForm((prev) => ({
+        ...prev,
+        userId: item._id,
+        managerName: item.name,
+      }));
+    } else {
+      setAssignForm((prev) => ({
+        ...prev,
+        userId: item._id,
+        managerName: item.name,
+      }));
+    }
+    setIsMemberModalOpen(false);
+    setMemberModalTarget(null);
+    setMemberQuery("");
+  }
+
   function handleEditReport(row: ReportRow) {
     setEditingReportId(row._id);
     setEditReportForm({
@@ -232,6 +406,7 @@ export default function SafetyManagementSetupPage() {
   function handleEditAssignment(row: AssignmentRow) {
     setEditingAssignmentId(row._id);
     setEditAssignmentForm({
+      userId: row.userId ?? "",
       managerName: row.managerName ?? "",
       position: row.position ?? "",
       certificationNo: row.certificationNo ?? "",
@@ -256,6 +431,11 @@ export default function SafetyManagementSetupPage() {
     }
     setEditingAssignmentId(null);
     setEditAssignmentForm(emptyAssignmentForm());
+    if (memberModalTarget === "edit") {
+      setIsMemberModalOpen(false);
+      setMemberModalTarget(null);
+      setMemberQuery("");
+    }
   }
 
   async function handleUpdateReport() {
@@ -615,14 +795,48 @@ export default function SafetyManagementSetupPage() {
       {showForm && tab === "assignment" ? (
         <div className="rounded-lg border border-border bg-background-card p-4 space-y-3">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <label className="space-y-1 md:col-span-3">
+              <span className="block text-sm font-medium text-foreground">현장 사용자 *</span>
+              <div className="flex flex-col gap-2 md:flex-row">
+                <input
+                  readOnly
+                  className="h-9 flex-1 rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
+                  value={memberSummary(selectedMember, assignForm.managerName)}
+                  placeholder="안전관리자로 선임할 현장 사용자를 선택해 주세요."
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenMemberModal("create")}
+                    className="rounded-md border border-border bg-background-soft px-4 py-2 text-sm font-medium text-foreground hover:bg-background-card"
+                  >
+                    사용자 선택
+                  </button>
+                  {assignForm.userId ? (
+                    <button
+                      type="button"
+                      onClick={() => setAssignForm(emptyAssignmentForm())}
+                      className="rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft"
+                    >
+                      초기화
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              {selectedMember ? (
+                <p className="text-xs text-foreground-muted">
+                  현장 권한 {membershipRoleLabel[selectedMember.membershipRole]}
+                  {selectedMember.email ? ` · ${selectedMember.email}` : ""}
+                  {selectedMember.role ? ` · 시스템 권한 ${userRoleLabel[selectedMember.role]}` : ""}
+                </p>
+              ) : null}
+            </label>
             <label className="space-y-1">
               <span className="block text-sm font-medium text-foreground">성명 *</span>
               <input
-                className="h-9 w-full rounded-md border border-border px-3 text-sm"
+                readOnly
+                className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
                 value={assignForm.managerName}
-                onChange={(event) =>
-                  setAssignForm((prev) => ({ ...prev, managerName: event.target.value }))
-                }
               />
             </label>
             <label className="space-y-1">
@@ -807,17 +1021,39 @@ export default function SafetyManagementSetupPage() {
           }}
         >
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label className="space-y-1 md:col-span-2">
+              <span className="block text-sm font-medium text-foreground">현장 사용자 *</span>
+              <div className="flex flex-col gap-2 md:flex-row">
+                <input
+                  readOnly
+                  className="h-10 flex-1 rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
+                  value={memberSummary(editSelectedMember, editAssignmentForm.managerName)}
+                  placeholder="안전관리자로 선임된 현장 사용자를 선택해 주세요."
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenMemberModal("edit")}
+                    className="rounded-md border border-border bg-background-soft px-4 py-2 text-sm font-medium text-foreground hover:bg-background-card"
+                  >
+                    사용자 선택
+                  </button>
+                </div>
+              </div>
+              {editSelectedMember ? (
+                <p className="text-xs text-foreground-muted">
+                  현장 권한 {membershipRoleLabel[editSelectedMember.membershipRole]}
+                  {editSelectedMember.email ? ` · ${editSelectedMember.email}` : ""}
+                  {editSelectedMember.role ? ` · 시스템 권한 ${userRoleLabel[editSelectedMember.role]}` : ""}
+                </p>
+              ) : null}
+            </label>
             <label className="space-y-1">
               <span className="block text-sm font-medium text-foreground">성명 *</span>
               <input
-                className="h-10 w-full rounded-md border border-border bg-background-card px-3 text-sm"
+                readOnly
+                className="h-10 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
                 value={editAssignmentForm.managerName}
-                onChange={(event) =>
-                  setEditAssignmentForm((prev) => ({
-                    ...prev,
-                    managerName: event.target.value,
-                  }))
-                }
               />
             </label>
             <label className="space-y-1">
@@ -826,10 +1062,7 @@ export default function SafetyManagementSetupPage() {
                 className="h-10 w-full rounded-md border border-border bg-background-card px-3 text-sm"
                 value={editAssignmentForm.position}
                 onChange={(event) =>
-                  setEditAssignmentForm((prev) => ({
-                    ...prev,
-                    position: event.target.value,
-                  }))
+                  setEditAssignmentForm((prev) => ({ ...prev, position: event.target.value }))
                 }
               />
             </label>
@@ -889,6 +1122,64 @@ export default function SafetyManagementSetupPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={isMemberModalOpen} title="현장 사용자 선택" onClose={handleCloseMemberModal}>
+        <div className="space-y-4">
+          <label className="space-y-1">
+            <span className="block text-sm font-medium text-foreground">검색</span>
+            <input
+              className="h-10 w-full rounded-md border border-border bg-background-card px-3 text-sm"
+              value={memberQuery}
+              onChange={(event) => setMemberQuery(event.target.value)}
+              placeholder="성명, 이메일, 권한으로 검색"
+            />
+          </label>
+
+          <div className="max-h-80 space-y-2 overflow-y-auto rounded-lg border border-border bg-background p-2">
+            {filteredMembers.length > 0 ? (
+              filteredMembers.map((item) => {
+                const currentUserId = memberModalTarget === "edit" ? editAssignmentForm.userId : assignForm.userId;
+                const isSelected = currentUserId === item._id;
+                return (
+                  <button
+                    key={item._id}
+                    type="button"
+                    onClick={() => handleSelectMember(item)}
+                    className={`flex w-full items-start justify-between rounded-md border px-3 py-3 text-left transition-colors ${
+                      isSelected
+                        ? "border-border-strong bg-background-card"
+                        : "border-transparent hover:border-border hover:bg-background-card"
+                    }`}
+                  >
+                    <span>
+                      <span className="block text-sm font-medium text-foreground">{item.name}</span>
+                      <span className="block text-xs text-foreground-muted">{item.email || "-"}</span>
+                    </span>
+                    <span className="text-right text-xs text-foreground-muted">
+                      <span className="block">현장 {membershipRoleLabel[item.membershipRole]}</span>
+                      <span className="block">시스템 {userRoleLabel[item.role]}</span>
+                    </span>
+                  </button>
+                );
+              })
+            ) : (
+              <p className="px-2 py-6 text-center text-sm text-foreground-muted">
+                {isMemberLoading ? "현장 사용자 목록을 불러오는 중..." : "조회된 현장 사용자가 없습니다."}
+              </p>
+            )}
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleCloseMemberModal}
+              className="rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
       </Modal>
 
       <Modal
