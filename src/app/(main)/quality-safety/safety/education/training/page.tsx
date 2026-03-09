@@ -3,8 +3,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { Pagination } from "@/components/ui/pagination";
+import {
+  DEFAULT_SAFETY_TRAINING_TYPE,
+  SAFETY_TRAINING_TYPES,
+  type SafetyTrainingType,
+} from "@/lib/safety-training-type";
 
-type TrainingRow = { _id: string; educationType: string; title: string; educationDate: string; instructor: string; duration: number; attendeeCount: number; content: string };
+type TrainingRow = { _id: string; educationType: SafetyTrainingType; title: string; educationDate: string; instructor: string; duration: number; attendeeCount: number; content: string };
 const SITE_ID_KEY = "pmis:siteId";
 const columns: DataTableColumn<TrainingRow>[] = [
   { key: "educationType", header: "유형" },
@@ -20,7 +25,15 @@ export default function SafetyTrainingPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ educationType: "", title: "", educationDate: "", instructor: "", duration: "", attendeeCount: "", content: "" });
+  const [form, setForm] = useState({
+    educationType: DEFAULT_SAFETY_TRAINING_TYPE,
+    title: "",
+    educationDate: "",
+    instructor: "",
+    duration: "",
+    attendeeCount: "",
+    content: "",
+  });
 
   const fetchData = useCallback((p: number) => {
     const siteId = localStorage.getItem(SITE_ID_KEY) ?? "";
@@ -35,7 +48,20 @@ export default function SafetyTrainingPage() {
     const siteId = localStorage.getItem(SITE_ID_KEY) ?? "";
     const res = await fetch("/api/safety/education", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, siteId, duration: Number(form.duration), attendeeCount: Number(form.attendeeCount) }) });
     const json = await res.json();
-    if (json.ok) { setShowForm(false); setForm({ educationType: "", title: "", educationDate: "", instructor: "", duration: "", attendeeCount: "", content: "" }); fetchData(1); setPage(1); }
+    if (json.ok) {
+      setShowForm(false);
+      setForm({
+        educationType: DEFAULT_SAFETY_TRAINING_TYPE,
+        title: "",
+        educationDate: "",
+        instructor: "",
+        duration: "",
+        attendeeCount: "",
+        content: "",
+      });
+      fetchData(1);
+      setPage(1);
+    }
   }
 
   return (
@@ -47,7 +73,22 @@ export default function SafetyTrainingPage() {
       {showForm && (
         <div className="rounded-lg border border-border bg-background-card p-4 space-y-3">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div className="space-y-1"><label className="block text-sm font-medium text-foreground">유형 *</label><input className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.educationType} onChange={(e) => setForm({ ...form, educationType: e.target.value })} /></div>
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-foreground">유형 *</label>
+              <select
+                className="h-9 w-full rounded-md border border-border px-3 text-sm"
+                value={form.educationType}
+                onChange={(e) =>
+                  setForm({ ...form, educationType: e.target.value as SafetyTrainingType })
+                }
+              >
+                {SAFETY_TRAINING_TYPES.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="space-y-1"><label className="block text-sm font-medium text-foreground">제목 *</label><input className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
             <div className="space-y-1"><label className="block text-sm font-medium text-foreground">교육일</label><input type="date" className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.educationDate} onChange={(e) => setForm({ ...form, educationDate: e.target.value })} /></div>
             <div className="space-y-1"><label className="block text-sm font-medium text-foreground">강사</label><input className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.instructor} onChange={(e) => setForm({ ...form, instructor: e.target.value })} /></div>

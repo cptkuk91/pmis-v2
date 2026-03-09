@@ -394,7 +394,7 @@ npm start
 
 ---
 
-## 9. API 인벤토리 (82)
+## 9. API 인벤토리 (88)
 
 아래는 `src/app/api/**/route.ts` 기준 전체 API 경로와 메서드입니다.
 
@@ -450,23 +450,29 @@ npm start
 | `/api/resource/workforce/summary` | `GET` |
 | `/api/safety/accident-free-status` | `GET` |
 | `/api/safety/checklists` | `GET,POST` |
+| `/api/safety/checklists/[itemId]` | `PATCH,DELETE` |
 | `/api/safety/completion` | `GET,POST` |
+| `/api/safety/completion/[itemId]` | `PATCH,DELETE` |
 | `/api/safety/daily-logs` | `GET,POST` |
 | `/api/safety/education` | `GET,POST` |
 | `/api/safety/facilities` | `GET,POST` |
 | `/api/safety/health` | `GET,POST` |
 | `/api/safety/management/setup` | `GET,POST` |
+| `/api/safety/management/setup/[itemId]` | `PATCH,DELETE` |
 | `/api/safety/mileage` | `GET,POST` |
 | `/api/safety/new-workers` | `GET` |
 | `/api/safety/policies` | `GET,POST` |
 | `/api/safety/ppe` | `GET,POST` |
 | `/api/safety/regulations` | `GET,POST` |
+| `/api/safety/regulations/[itemId]` | `PATCH,DELETE` |
 | `/api/safety/reports` | `GET,POST` |
 | `/api/safety/rewards` | `GET,POST` |
 | `/api/safety/standards` | `GET,POST` |
+| `/api/safety/standards/[itemId]` | `PATCH,DELETE` |
 | `/api/search/unified` | `GET` |
 | `/api/sites/[id]` | `GET,PATCH` |
 | `/api/sites/construction-plans` | `GET,POST` |
+| `/api/sites/members` | `GET` |
 | `/api/sites/history` | `GET,POST` |
 | `/api/sites/methods` | `GET,POST` |
 | `/api/sites/personnel` | `GET,POST` |
@@ -664,123 +670,8 @@ npm start
 
 ---
 
-## 14. 현재 상태 메모 (코드 기준)
+## 14. Version 로드맵
 
-- `Readme.md`는 본 문서로 프로젝트 전체 개요를 갱신 완료.
-- `scripts/` 디렉토리는 현재 없으므로 `phase6:*` 스크립트는 경로 복구 전 실행 불가.
-- 도면 열람 시스템은 시스템 관리가 아닌 설계·문서로 이동 완료(레거시 경로 리다이렉트 유지).
+Version 별 계획과 개선 백로그는 별도 문서를 참고하세요.
 
-## 15. Version 별
-
-### 15.1 Version 라인업
-
-아래 감축/향상 수치는 현장 규모와 자동화 범위에 따라 달라질 수 있는 추정치입니다.
-
-| Version | 담당 | 메모 |
-|---|---|---|
-| 2.0 | 관리직 | 현재 운영 코드 기준 |
-| 2.5 | 관리직 | AI 도입, 관리직 30% 감축 예상 / 현장직 0%(필수 유지), Prototype 진행 |
-| 3.0 | 현장직 | SmartGlass 도입, 관리직 35~45% / 현장직 5~10% 감축 예상 |
-| 3.5 | 현장직 | SmartGlass+AI 자동 입력, 관리직 50~60% / 현장직 40~55% 감축 예상 |
-| 4.0 | Robot | Robot 활용, 관리직 60~75% / 현장직 80~90% 감축 예상 |
-
----
-
-## 16. Version 2.0 당장 업데이트 필요한 내용
-
-아래 항목은 현재 코드 기반에서 바로 적용 효과가 큰 개선 과제입니다.
-
-### 16.1 코드 등록/채번 자동 생성
-
-- 통합 채번 규칙 서비스 도입:
-  - 문서번호(`docNo`), 회의번호, 티켓번호(`ticketNo`), 이슈번호, 도면검토번호 자동 생성
-- 코드 마스터 자동 생성:
-  - 현장 생성 시 기본 코드 그룹/코드 아이템(관련사/자재/장비/문서분류) 자동 시드
-- 중복 방지:
-  - 사이트 단위 유니크 인덱스 + 생성 트랜잭션으로 충돌 차단
-
-### 16.2 현장 개설 자동화
-
-- `POST /api/sites` 완료 시 초기 세팅 자동 실행:
-  - 생성자 `site_admin` 자동 매핑
-  - 기본 외부 링크(도면 열람 시스템 등) 자동 등록
-  - 기본 대시보드 위젯 초기값 생성
-- 현장 개설 체크리스트 UI:
-  - "필수 항목 미완료" 상태를 한 화면에서 점검 가능
-
-### 16.3 사용자-현장 배정 운영성 강화
-
-- 미배치 사용자 큐 자동 분리:
-  - `site memberships` 없는 사용자만 별도 목록으로 표시
-- 배정/해제 이력 감사 로그 강화:
-  - 누가/언제/무슨 역할로 변경했는지 `audit_logs` 상세 기록
-- 대량 배정 기능:
-  - 여러 사용자 선택 후 일괄 배정/권한 변경
-
-### 16.4 데이터 입력 품질 고도화
-
-- 기준정보 참조형 입력 통일:
-  - 자유 텍스트보다 코드 선택 기반 입력으로 전환
-- 필수값/포맷 검증 강화:
-  - 전화번호, 이메일, 날짜, 금액 단위 검증 룰 통일
-- 중복 데이터 방지:
-  - 문서/자재/장비 핵심 키 조합 중복 등록 차단
-
-### 16.5 운영 안정화(장애/배치)
-
-- Open-Meteo 연계 안정화:
-  - 재시도(backoff), TTL 캐시, 실패 알림 임계치 설정
-- 배치/연계 공통 상태판:
-  - 최근 성공시각, 실패건수, 재시도 상태를 `/system-admin`에서 확인
-- Runbook 자동 점검 커맨드 정리:
-  - 현재 누락된 `scripts/` 경로 복구 또는 문서 기준 수동 점검 절차 고정
-
-### 16.6 UI/업무 효율 개선
-
-- 통합 검색 고도화:
-  - 검색 대상 범위 선택(문서/이슈/회의/도면), 최근 검색어 저장
-- 등록 폼 UX 표준화:
-  - 저장/취소 버튼 위치, 토스트 메시지, 모달 확인 동작 공통화
-- 모바일 대응 우선 화면 지정:
-  - 현장 개요, 근태, 안전일지, Support 화면 터치 UX 우선 개선
-
----
-
-## 17. Version 2.5
-
-- AI 도입
-- 관리직 인력 감축 예상: `30%`
-- 현장직 인력 감축 예상: `0%` (현장직 반드시 필요)
-- 작업 속도 향상 예상: `20~30%`
-- 현장직 직접 입력 유지
-- Prototype 올라가는 중 (PoC 단계)
-
-## 18. Version 3.0
-
-- SmartGlass 도입
-- 현장직 외 소수 사무직 제외한 인력 감축 가능 구조 검토
-- 현장직 직접 기입 방식 운영
-- 관리직 인력 감축 예상: `35~45%`
-- 현장직 인력 감축 예상: `5~10%`
-- 작업 속도 향상 예상: `35~45%`
-
-## 19. Version 3.5
-
-- SmartGlass 도입 확대
-- 현장직 기입 불필요 목표
-- AI 연동을 통한 자동 입력 전환
-- 관리직 인력 감축 예상: `50~60%`
-- 현장직 인력 감축 예상: `40~55%`
-- 작업 속도 향상 예상: `60~70%`
-
-## 20. Version 4.0
-
-- Robot 활용
-- 현장직 기입 불필요 운영 모델
-- 관리직 인력 감축 예상: `60~75%`
-- 현장직 인력 감축 예상: `80~90%`
-- 작업 속도 향상 예상: `80~90%`
-
-## 작업 진행 시간 
-- 프로젝트 경과 시간(최초~최근 커밋): 약 26시간 46분
-- 실제 순수 작업시간은 휴식 구간 제외 약 9~11시간
+- 로드맵 및 백로그: `docs/roadmap.md`

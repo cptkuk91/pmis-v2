@@ -1,9 +1,13 @@
 import mongoose, { Schema, Document } from "mongoose";
 import { baseFieldsPlugin } from "@/lib/mongoose-plugins";
+import {
+  SAFETY_TRAINING_TYPES,
+  type SafetyTrainingType,
+} from "@/lib/safety-training-type";
 
 export interface ISafetyEducationRecord extends Document {
   siteId: string;
-  educationType: string;
+  educationType: SafetyTrainingType;
   title: string;
   educationDate: Date;
   instructor: string;
@@ -16,7 +20,7 @@ export interface ISafetyEducationRecord extends Document {
 const SafetyEducationRecordSchema = new Schema<ISafetyEducationRecord>(
   {
     siteId: { type: String, required: true, index: true },
-    educationType: { type: String, required: true },
+    educationType: { type: String, enum: SAFETY_TRAINING_TYPES, required: true },
     title: { type: String, required: true },
     educationDate: { type: Date, required: true },
     instructor: { type: String, default: "" },

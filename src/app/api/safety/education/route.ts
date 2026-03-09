@@ -4,6 +4,7 @@ import SafetyEducationRecord from "@/models/SafetyEducationRecord";
 import { success, paginated } from "@/lib/api-response";
 import { handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { logCreate } from "@/lib/audit-logger";
+import { isSafetyTrainingType } from "@/lib/safety-training-type";
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,10 +30,20 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
+    const siteId = String(body.siteId ?? "").trim();
+    const educationType = String(body.educationType ?? "").trim();
+
+    if (!siteId) {
+      throw VALIDATION_ERROR("siteId가 필요합니다.");
+    }
+    if (!isSafetyTrainingType(educationType)) {
+      throw VALIDATION_ERROR("교육 유형 값이 올바르지 않습니다.");
+    }
+
     const doc = await SafetyEducationRecord.create(body);
 
-    await logCreate(body.siteId, "safety_education", String(doc._id), { userId: null, userName: "system" });
+    await logCreate(siteId, "safety_education", String(doc._id), { userId: null, userName: "system" });
 
     return success(doc);
   } catch (err) {
