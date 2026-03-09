@@ -3,6 +3,7 @@ import { baseFieldsPlugin } from "@/lib/mongoose-plugins";
 
 export interface IHealthCheckRecord extends Document {
   siteId: string;
+  workerUserId?: mongoose.Types.ObjectId;
   workerName: string;
   company: string;
   checkType: "regular" | "special" | "hiring";
@@ -15,6 +16,7 @@ export interface IHealthCheckRecord extends Document {
 const HealthCheckRecordSchema = new Schema<IHealthCheckRecord>(
   {
     siteId: { type: String, required: true, index: true },
+    workerUserId: { type: Schema.Types.ObjectId, ref: "User" },
     workerName: { type: String, required: true },
     company: { type: String, default: "" },
     checkType: { type: String, enum: ["regular", "special", "hiring"], required: true },

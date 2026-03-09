@@ -48,10 +48,8 @@ const menuGroups = [
     id: "outcome",
     label: "성과·시설",
     items: [
-      { href: "/quality-safety/safety/rewards/accident-free", label: "무재해 인센티브" },
       { href: "/quality-safety/safety/rewards/mileage", label: "안전 포인트" },
-      { href: "/quality-safety/safety/facilities/standard", label: "표준 시설" },
-      { href: "/quality-safety/safety/facilities/excellent", label: "우수 사례" },
+      { href: "/quality-safety/safety/facilities", label: "안전시설물" },
     ],
   },
 ];

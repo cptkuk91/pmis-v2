@@ -248,10 +248,8 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 
 | 메뉴 | 경로 | 설명 |
 |------|------|------|
-| 무재해 인센티브 | `/quality-safety/safety/rewards/accident-free` | 무재해 달성 포상 관리 |
 | 안전 포인트 | `/quality-safety/safety/rewards/mileage` | 안전 마일리지 적립 현황 |
-| 표준 시설 | `/quality-safety/safety/facilities/standard` | 표준 안전시설물 정보 |
-| 우수 사례 | `/quality-safety/safety/facilities/excellent` | 우수 안전시설물 정보 |
+| 안전시설물 | `/quality-safety/safety/facilities` | 표준 시설과 우수 사례 통합 관리 |
 
 #### 정책/규정
 

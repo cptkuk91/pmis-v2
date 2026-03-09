@@ -237,8 +237,7 @@ npm start
 
 - `/quality-safety/safety/rewards/accident-free`
 - `/quality-safety/safety/rewards/mileage`
-- `/quality-safety/safety/facilities/standard`
-- `/quality-safety/safety/facilities/excellent`
+- `/quality-safety/safety/facilities`
 
 ### 7.6 QA (`/qa`)
 
@@ -347,8 +346,7 @@ npm start
 - `/quality-safety/safety/education/health`
 - `/quality-safety/safety/education/new-worker`
 - `/quality-safety/safety/education/training`
-- `/quality-safety/safety/facilities/excellent`
-- `/quality-safety/safety/facilities/standard`
+- `/quality-safety/safety/facilities`
 - `/quality-safety/safety/laws`
 - `/quality-safety/safety/management/completion`
 - `/quality-safety/safety/management/daily-log`
