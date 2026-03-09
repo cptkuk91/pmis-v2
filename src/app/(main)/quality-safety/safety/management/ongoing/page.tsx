@@ -16,11 +16,23 @@ type Row = {
 const SITE_ID_KEY = "pmis:siteId";
 const typeLabel: Record<string, string> = { situation: "상황 보고", cost: "운영비" };
 
+function normalizeAmount(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+function formatAmount(value: string): string {
+  const digits = normalizeAmount(value);
+  if (!digits) {
+    return "";
+  }
+  return Number(digits).toLocaleString("ko-KR");
+}
+
 const columns: DataTableColumn<Row>[] = [
   { key: "reportType", header: "유형", className: "w-24", render: (_v, row) => typeLabel[row.reportType] ?? row.reportType },
   { key: "title", header: "제목" },
   { key: "reportDate", header: "보고일", className: "w-28", render: (_v, row) => row.reportDate?.slice(0, 10) },
-  { key: "amount", header: "금액", className: "w-28 text-right", render: (_v, row) => row.amount?.toLocaleString() },
+  { key: "amount", header: "금액(원)", className: "w-32 text-right", render: (_v, row) => row.amount?.toLocaleString("ko-KR") },
   { key: "remarks", header: "비고" },
 ];
 
@@ -40,7 +52,7 @@ export default function SafetyManagementOngoingPage() {
 
   async function handleSubmit() {
     const siteId = localStorage.getItem(SITE_ID_KEY) ?? "";
-    const body = { ...form, amount: Number(form.amount) || 0, siteId };
+    const body = { ...form, amount: Number(normalizeAmount(form.amount)) || 0, siteId };
     const res = await fetch("/api/safety/reports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const json = await res.json();
     if (json.ok) { setShowForm(false); setForm({ reportType: "situation", title: "", reportDate: "", amount: "", content: "" }); fetchData(); }
@@ -65,7 +77,21 @@ export default function SafetyManagementOngoingPage() {
             </div>
             <div className="space-y-1"><label className="block text-sm font-medium text-foreground">제목 *</label><input className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
             <div className="space-y-1"><label className="block text-sm font-medium text-foreground">보고일</label><input type="date" className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.reportDate} onChange={(e) => setForm({ ...form, reportDate: e.target.value })} /></div>
-            <div className="space-y-1"><label className="block text-sm font-medium text-foreground">금액</label><input type="number" className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-foreground">금액 (원)</label>
+              <div className="relative">
+                <input
+                  inputMode="numeric"
+                  className="h-9 w-full rounded-md border border-border px-3 pr-10 text-sm"
+                  value={form.amount}
+                  onChange={(e) => setForm({ ...form, amount: formatAmount(e.target.value) })}
+                  placeholder="예: 500,000"
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-foreground-muted">
+                  원
+                </span>
+              </div>
+            </div>
           </div>
           <div className="space-y-1"><label className="block text-sm font-medium text-foreground">내용</label><textarea className="w-full rounded-md border border-border px-3 py-2 text-sm" rows={3} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} /></div>
           <div className="flex justify-end"><button type="button" onClick={handleSubmit} className="rounded-md bg-[#ecebe8] px-4 py-1.5 text-sm font-medium text-foreground hover:bg-[#e2e0db]">저장</button></div>

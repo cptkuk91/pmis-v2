@@ -1,10 +1,11 @@
 import mongoose, { Schema, Document } from "mongoose";
 import { baseFieldsPlugin } from "@/lib/mongoose-plugins";
+import { ACCIDENT_TYPES, type AccidentType } from "@/lib/accident-type";
 
 export interface IAccidentRecord extends Document {
   siteId: string;
   accidentDate: Date;
-  accidentType: string;
+  accidentType: AccidentType;
   location: string;
   description: string;
   injuredName: string;
@@ -20,7 +21,7 @@ const AccidentRecordSchema = new Schema<IAccidentRecord>(
   {
     siteId: { type: String, required: true, index: true },
     accidentDate: { type: Date, required: true },
-    accidentType: { type: String, required: true },
+    accidentType: { type: String, enum: ACCIDENT_TYPES, required: true },
     location: { type: String, default: "" },
     description: { type: String, default: "" },
     injuredName: { type: String, default: "" },
