@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { DataTable, FormInput, Pagination, StatusBadge } from "@/components/ui";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { DataTable, FormInput, Modal, Pagination, StatusBadge } from "@/components/ui";
+import type { DataTableColumn } from "@/components/ui/data-table";
 import { hasMinRole, useCurrentUser } from "@/hooks/use-current-user";
 
 type Status = "draft" | "in_review" | "approved" | "rejected" | "completed";
@@ -16,6 +17,7 @@ type DailySafetyLogRow = {
   notes: string;
   managerName: string;
   status: Status;
+  management?: string;
 };
 
 type DailySafetyLogResponse = {
@@ -24,6 +26,25 @@ type DailySafetyLogResponse = {
   meta?: { page: number; totalPages: number };
   error?: string;
 };
+
+type DailySafetyLogFormState = {
+  logDate: string;
+  weather: string;
+  workersCount: number;
+  hazards: string;
+  actions: string;
+  notes: string;
+  status: Status;
+};
+
+type DeleteTarget = {
+  _id: string;
+  title: string;
+};
+
+function canManageLogStatus(status: Status): boolean {
+  return status === "draft" || status === "completed";
+}
 
 function escapeHtml(value: string): string {
   return value
@@ -77,9 +98,108 @@ function buildPrintHtml(item: DailySafetyLogRow): string {
 </html>`;
 }
 
+function getTodayDateInputValue(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function createDefaultForm(): DailySafetyLogFormState {
+  return {
+    logDate: getTodayDateInputValue(),
+    weather: "맑음",
+    workersCount: 0,
+    hazards: "",
+    actions: "",
+    notes: "",
+    status: "draft",
+  };
+}
+
+type DailySafetyLogFormFieldsProps = {
+  form: DailySafetyLogFormState;
+  onChange: (patch: Partial<DailySafetyLogFormState>) => void;
+};
+
+function DailySafetyLogFormFields({ form, onChange }: DailySafetyLogFormFieldsProps) {
+  return (
+    <>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <FormInput
+          label="일지일자"
+          type="date"
+          value={form.logDate}
+          onChange={(event) => onChange({ logDate: event.target.value })}
+          required
+        />
+        <FormInput
+          label="기상"
+          value={form.weather}
+          onChange={(event) => onChange({ weather: event.target.value })}
+          placeholder="예: 맑음, 흐림"
+        />
+        <FormInput
+          label="근무인원"
+          type="number"
+          min={0}
+          value={String(form.workersCount)}
+          onChange={(event) => onChange({ workersCount: Number(event.target.value || "0") })}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <label className="space-y-1">
+          <span className="block text-sm font-medium text-foreground">위험요인</span>
+          <textarea
+            rows={3}
+            value={form.hazards}
+            onChange={(event) => onChange({ hazards: event.target.value })}
+            className="w-full rounded-md border border-border bg-background-card px-3 py-2 text-sm text-foreground outline-none focus:border-border-strong focus:ring-2 focus:ring-primary/15"
+          />
+        </label>
+        <label className="space-y-1">
+          <span className="block text-sm font-medium text-foreground">조치사항</span>
+          <textarea
+            rows={3}
+            value={form.actions}
+            onChange={(event) => onChange({ actions: event.target.value })}
+            className="w-full rounded-md border border-border bg-background-card px-3 py-2 text-sm text-foreground outline-none focus:border-border-strong focus:ring-2 focus:ring-primary/15"
+          />
+        </label>
+        <label className="space-y-1">
+          <span className="block text-sm font-medium text-foreground">특이사항</span>
+          <textarea
+            rows={3}
+            value={form.notes}
+            onChange={(event) => onChange({ notes: event.target.value })}
+            className="w-full rounded-md border border-border bg-background-card px-3 py-2 text-sm text-foreground outline-none focus:border-border-strong focus:ring-2 focus:ring-primary/15"
+          />
+        </label>
+      </div>
+
+      <label className="space-y-1">
+        <span className="block text-sm font-medium text-foreground">상태</span>
+        <select
+          value={form.status}
+          onChange={(event) => onChange({ status: event.target.value as Status })}
+          className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
+        >
+          <option value="draft">임시저장</option>
+          <option value="in_review">검토중</option>
+          <option value="approved">승인</option>
+          <option value="rejected">반려</option>
+          <option value="completed">완료</option>
+        </select>
+      </label>
+    </>
+  );
+}
+
 export default function SafetyDailyLogPage() {
   const { user, isLoading: isUserLoading } = useCurrentUser();
-  const canWrite = useMemo(() => hasMinRole(user.role, "manager"), [user.role]);
+  const canWrite = hasMinRole(user.role, "manager");
 
   const [items, setItems] = useState<DailySafetyLogRow[]>([]);
   const [page, setPage] = useState(1);
@@ -88,15 +208,15 @@ export default function SafetyDailyLogPage() {
   const [keyword, setKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | Status>("all");
 
-  const [logDate, setLogDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [weather, setWeather] = useState("맑음");
-  const [workersCount, setWorkersCount] = useState(0);
-  const [hazards, setHazards] = useState("");
-  const [actions, setActions] = useState("");
-  const [notes, setNotes] = useState("");
+  const [form, setForm] = useState<DailySafetyLogFormState>(createDefaultForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<DailySafetyLogFormState>(createDefaultForm);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -112,7 +232,9 @@ export default function SafetyDailyLogPage() {
           status: statusFilter,
         });
 
-        const response = await fetch(`/api/safety/daily-logs?${params.toString()}`, { cache: "no-store" });
+        const response = await fetch(`/api/safety/daily-logs?${params.toString()}`, {
+          cache: "no-store",
+        });
         const result = (await response.json()) as DailySafetyLogResponse;
         if (!result.ok) {
           throw new Error(result.error ?? "안전 일지 조회 실패");
@@ -134,7 +256,7 @@ export default function SafetyDailyLogPage() {
     void loadData(1);
   }, [loadData]);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canWrite) {
       return;
@@ -148,14 +270,7 @@ export default function SafetyDailyLogPage() {
       const response = await fetch("/api/safety/daily-logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          logDate,
-          weather,
-          workersCount,
-          hazards,
-          actions,
-          notes,
-        }),
+        body: JSON.stringify(form),
       });
 
       const result = (await response.json()) as { ok: boolean; error?: string };
@@ -163,11 +278,7 @@ export default function SafetyDailyLogPage() {
         throw new Error(result.error ?? "안전 일지 등록 실패");
       }
 
-      setWeather("맑음");
-      setWorkersCount(0);
-      setHazards("");
-      setActions("");
-      setNotes("");
+      setForm(createDefaultForm());
       setMessage("안전 일지가 등록되었습니다.");
       await loadData(1);
     } catch (err) {
@@ -191,6 +302,171 @@ export default function SafetyDailyLogPage() {
       printWindow.focus();
       printWindow.print();
     }, 150);
+  }
+
+  function handleOpenEditModal(item: DailySafetyLogRow) {
+    if (!canManageLogStatus(item.status)) {
+      return;
+    }
+
+    setEditingId(item._id);
+    setEditForm({
+      logDate: item.logDate ? String(item.logDate).slice(0, 10) : getTodayDateInputValue(),
+      weather: item.weather ?? "",
+      workersCount: item.workersCount ?? 0,
+      hazards: item.hazards ?? "",
+      actions: item.actions ?? "",
+      notes: item.notes ?? "",
+      status: item.status ?? "draft",
+    });
+    setError(null);
+    setMessage(null);
+  }
+
+  function handleCloseEditModal() {
+    if (isUpdating) {
+      return;
+    }
+    setEditingId(null);
+    setEditForm(createDefaultForm());
+  }
+
+  async function handleUpdate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingId || !canWrite) {
+      return;
+    }
+
+    setIsUpdating(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response = await fetch(`/api/safety/daily-logs/${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      const result = (await response.json()) as { ok: boolean; error?: string };
+      if (!result.ok) {
+        throw new Error(result.error ?? "안전 일지 수정 실패");
+      }
+
+      setEditingId(null);
+      setEditForm(createDefaultForm());
+      setMessage("안전 일지가 수정되었습니다.");
+      await loadData(page);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "안전 일지 수정 실패");
+    } finally {
+      setIsUpdating(false);
+    }
+  }
+
+  function handleOpenDeleteModal(item: DailySafetyLogRow) {
+    if (!canManageLogStatus(item.status)) {
+      return;
+    }
+
+    setDeleteTarget({
+      _id: item._id,
+      title: new Date(item.logDate).toLocaleDateString("ko-KR"),
+    });
+    setError(null);
+    setMessage(null);
+  }
+
+  function handleCloseDeleteModal() {
+    if (deletingId) {
+      return;
+    }
+    setDeleteTarget(null);
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget || !canWrite) {
+      return;
+    }
+
+    setDeletingId(deleteTarget._id);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response = await fetch(`/api/safety/daily-logs/${deleteTarget._id}`, {
+        method: "DELETE",
+      });
+      const result = (await response.json()) as { ok: boolean; error?: string };
+      if (!result.ok) {
+        throw new Error(result.error ?? "안전 일지 삭제 실패");
+      }
+
+      if (editingId === deleteTarget._id) {
+        handleCloseEditModal();
+      }
+      setDeleteTarget(null);
+      setMessage("안전 일지가 삭제되었습니다.");
+      await loadData(1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "안전 일지 삭제 실패");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  const columns: DataTableColumn<DailySafetyLogRow>[] = [
+    {
+      key: "logDate",
+      header: "일자",
+      className: "w-28",
+      render: (value) => new Date(String(value)).toLocaleDateString("ko-KR"),
+    },
+    { key: "weather", header: "기상", className: "w-16" },
+    {
+      key: "workersCount",
+      header: "인원",
+      className: "w-20 text-right",
+      render: (value) => `${Number(value)}명`,
+    },
+    { key: "hazards", header: "위험요인" },
+    { key: "actions", header: "조치사항" },
+    { key: "notes", header: "특이사항" },
+    { key: "managerName", header: "관리자", className: "w-24" },
+    {
+      key: "status",
+      header: "상태",
+      className: "w-24",
+      render: (value) => <StatusBadge status={value as Status} />,
+    },
+  ];
+
+  if (canWrite) {
+    columns.push({
+      key: "management",
+      header: "관리",
+      className: "w-32",
+      render: (_value, item) =>
+        canManageLogStatus(item.status) ? (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handleOpenEditModal(item)}
+              className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-background-soft"
+            >
+              수정
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenDeleteModal(item)}
+              className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+            >
+              삭제
+            </button>
+          </div>
+        ) : (
+          <span className="text-xs text-foreground-muted">-</span>
+        ),
+    });
   }
 
   return (
@@ -243,107 +519,96 @@ export default function SafetyDailyLogPage() {
       </div>
 
       {canWrite ? (
-        <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-border bg-background-soft p-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <FormInput
-              label="일지일자"
-              type="date"
-              value={logDate}
-              onChange={(event) => setLogDate(event.target.value)}
-              required
-            />
-            <FormInput
-              label="기상"
-              value={weather}
-              onChange={(event) => setWeather(event.target.value)}
-              placeholder="예: 맑음, 흐림"
-            />
-            <FormInput
-              label="근무인원"
-              type="number"
-              min={0}
-              value={String(workersCount)}
-              onChange={(event) => setWorkersCount(Number(event.target.value || "0"))}
-            />
-          </div>
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-3 rounded-lg border border-border bg-background-soft p-4"
+        >
+          <DailySafetyLogFormFields
+            form={form}
+            onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+          />
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <label className="space-y-1">
-              <span className="block text-sm font-medium text-foreground">위험요인</span>
-              <textarea
-                rows={3}
-                value={hazards}
-                onChange={(event) => setHazards(event.target.value)}
-                className="w-full rounded-md border border-border bg-background-card px-3 py-2 text-sm text-foreground outline-none focus:border-border-strong focus:ring-2 focus:ring-primary/15"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="block text-sm font-medium text-foreground">조치사항</span>
-              <textarea
-                rows={3}
-                value={actions}
-                onChange={(event) => setActions(event.target.value)}
-                className="w-full rounded-md border border-border bg-background-card px-3 py-2 text-sm text-foreground outline-none focus:border-border-strong focus:ring-2 focus:ring-primary/15"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="block text-sm font-medium text-foreground">특이사항</span>
-              <textarea
-                rows={3}
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-                className="w-full rounded-md border border-border bg-background-card px-3 py-2 text-sm text-foreground outline-none focus:border-border-strong focus:ring-2 focus:ring-primary/15"
-              />
-            </label>
-          </div>
-
-          <div className="flex justify-end">
+          <div className="flex justify-end pt-2">
             <button
               type="submit"
               disabled={isSubmitting}
               className="rounded-md bg-[#ecebe8] px-4 py-2 text-sm font-medium text-foreground hover:bg-[#e2e0db] disabled:opacity-60"
             >
-              일지 등록
+              {isSubmitting ? "저장 중..." : "등록"}
             </button>
           </div>
         </form>
       ) : isUserLoading ? null : (
-        <p className="text-sm text-foreground-muted">안전 일지 등록은 현재 시스템 권한상 `manager` 이상만 가능합니다.</p>
+        <p className="text-sm text-foreground-muted">
+          안전 일지 등록은 현재 시스템 권한상 `manager` 이상만 가능합니다.
+        </p>
       )}
 
       {message ? <p className="text-sm text-success">{message}</p> : null}
       {error ? <p className="text-sm text-danger">{error}</p> : null}
+      {canWrite ? (
+        <p className="text-xs text-foreground-muted">임시저장 또는 완료 상태의 일지만 수정하거나 삭제할 수 있습니다.</p>
+      ) : null}
 
-      <DataTable<DailySafetyLogRow>
-        columns={[
-          {
-            key: "logDate",
-            header: "일자",
-            className: "w-28",
-            render: (value) => new Date(String(value)).toLocaleDateString("ko-KR"),
-          },
-          { key: "weather", header: "기상", className: "w-16" },
-          {
-            key: "workersCount",
-            header: "인원",
-            className: "w-20 text-right",
-            render: (value) => `${Number(value)}명`,
-          },
-          { key: "hazards", header: "위험요인" },
-          { key: "actions", header: "조치사항" },
-          { key: "notes", header: "특이사항" },
-          { key: "managerName", header: "관리자", className: "w-24" },
-          {
-            key: "status",
-            header: "상태",
-            className: "w-24",
-            render: (value) => <StatusBadge status={value as Status} />,
-          },
-        ]}
+      <DataTable
+        columns={columns}
         data={items}
         rowKey={(row) => row._id}
         emptyMessage={isLoading ? "불러오는 중..." : "등록된 안전 일지가 없습니다."}
       />
+
+      <Modal open={Boolean(editingId)} title="안전 일지 수정" onClose={handleCloseEditModal}>
+        <form className="space-y-4" onSubmit={handleUpdate}>
+          <DailySafetyLogFormFields
+            form={editForm}
+            onChange={(patch) => setEditForm((prev) => ({ ...prev, ...patch }))}
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleCloseEditModal}
+              disabled={isUpdating}
+              className="rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft disabled:opacity-60"
+            >
+              취소
+            </button>
+            <button
+              type="submit"
+              disabled={isUpdating}
+              className="rounded-md border border-border bg-background-soft px-4 py-2 text-sm font-medium text-foreground hover:bg-background-card disabled:opacity-60"
+            >
+              {isUpdating ? "저장 중..." : "저장"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={Boolean(deleteTarget)} title="안전 일지 삭제" onClose={handleCloseDeleteModal}>
+        <div className="space-y-4">
+          <p className="text-sm text-foreground">
+            <strong>{deleteTarget?.title}</strong> 일지를 삭제하시겠습니까?
+          </p>
+          <p className="text-sm text-foreground-muted">삭제 후에는 목록에서 보이지 않습니다.</p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleCloseDeleteModal}
+              disabled={Boolean(deletingId)}
+              className="rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft disabled:opacity-60"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              disabled={Boolean(deletingId)}
+              className="rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-100 disabled:opacity-60"
+            >
+              {deletingId ? "삭제 중..." : "삭제"}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <Pagination page={page} totalPages={totalPages} onPageChange={(nextPage) => void loadData(nextPage)} />
     </section>

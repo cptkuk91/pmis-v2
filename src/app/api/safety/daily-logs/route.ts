@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/db";
 import { paginated, success } from "@/lib/api-response";
-import { ApiError, handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
+import { ApiError, handleApiError } from "@/lib/api-error";
 import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import DailySafetyLog from "@/models/DailySafetyLog";
 import { logCreate } from "@/lib/audit-logger";
-import type { Status } from "@/types";
+import { isDailySafetyLogStatus, normalizeDailySafetyLogPayload } from "@/lib/daily-safety-log";
 
 function parsePositiveInt(rawValue: string | null, fallback: number, max = 100): number {
   const parsed = Number(rawValue ?? String(fallback));
@@ -18,10 +18,6 @@ function parsePositiveInt(rawValue: string | null, fallback: number, max = 100):
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function isStatus(value: string): value is Status {
-  return ["draft", "in_review", "approved", "rejected", "completed"].includes(value);
 }
 
 export async function GET(request: NextRequest) {
@@ -45,7 +41,7 @@ export async function GET(request: NextRequest) {
       const regex = new RegExp(escapeRegex(keyword), "i");
       filter.$or = [{ weather: regex }, { hazards: regex }, { actions: regex }, { notes: regex }];
     }
-    if (status !== "all" && isStatus(status)) {
+    if (status !== "all" && isDailySafetyLogStatus(status)) {
       filter.status = status;
     }
 
@@ -71,25 +67,21 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as Record<string, unknown>;
-    const logDate = body.logDate ? new Date(String(body.logDate)) : new Date();
-    if (Number.isNaN(logDate.getTime())) {
-      throw VALIDATION_ERROR("logDate 형식이 올바르지 않습니다.");
-    }
-
-    const statusInput = String(body.status ?? "draft");
-    const status: Status = isStatus(statusInput) ? statusInput : "draft";
-    const workersCount = Number(body.workersCount ?? 0);
+    const payload = normalizeDailySafetyLogPayload(body, {
+      defaultStatus: "draft",
+      defaultManagerName: requester.userName,
+    });
 
     const created = await DailySafetyLog.create({
       siteId,
-      logDate,
-      weather: String(body.weather ?? "").trim(),
-      workersCount: Number.isFinite(workersCount) ? Math.max(0, workersCount) : 0,
-      hazards: String(body.hazards ?? "").trim(),
-      actions: String(body.actions ?? "").trim(),
-      notes: String(body.notes ?? "").trim(),
-      managerName: String(body.managerName ?? requester.userName).trim(),
-      status,
+      logDate: payload.logDate,
+      weather: payload.weather,
+      workersCount: payload.workersCount,
+      hazards: payload.hazards,
+      actions: payload.actions,
+      notes: payload.notes,
+      managerName: payload.managerName,
+      status: payload.status,
       createdBy: requester.userId ?? undefined,
       updatedBy: requester.userId ?? undefined,
     });
