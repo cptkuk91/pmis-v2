@@ -4,18 +4,27 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DataTable, FormInput, Pagination } from "@/components/ui";
+import type { DataTableColumn } from "@/components/ui/data-table";
+import { Modal } from "@/components/ui/modal";
 import { hasMinRole, useCurrentUser } from "@/hooks/use-current-user";
+import {
+  DEFAULT_PROGRESS_SCHEDULE_CATEGORY,
+  PROGRESS_SCHEDULE_CATEGORIES,
+  isProgressScheduleCategory,
+  type ProgressScheduleCategory,
+} from "@/lib/progress-schedule-category";
 
 type ScheduleRow = {
   _id: string;
   taskCode: string;
   taskName: string;
-  category: string;
+  category: ProgressScheduleCategory | string;
   plannedStart: string;
   plannedEnd: string;
   plannedProgress: number;
   actualProgress: number;
   sortOrder: number;
+  actions?: string;
 };
 
 type ScheduleResponse = {
@@ -23,6 +32,23 @@ type ScheduleResponse = {
   data: ScheduleRow[];
   meta?: { page: number; totalPages: number };
   error?: string;
+};
+
+type NextTaskCodeResponse = {
+  ok: boolean;
+  data?: { taskCode: string };
+  error?: string;
+};
+
+type MutationResponse = {
+  ok: boolean;
+  error?: string;
+};
+
+type DeleteTarget = {
+  _id: string;
+  taskCode: string;
+  taskName: string;
 };
 
 function clampProgress(value: number): number {
@@ -55,21 +81,39 @@ export default function MasterSchedulePage() {
   const [totalPages, setTotalPages] = useState(1);
 
   const [keyword, setKeyword] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | ProgressScheduleCategory>("all");
 
   const [taskCode, setTaskCode] = useState("");
   const [taskName, setTaskName] = useState("");
-  const [category, setCategory] = useState("공정");
+  const [category, setCategory] = useState<ProgressScheduleCategory>(DEFAULT_PROGRESS_SCHEDULE_CATEGORY);
   const [plannedStart, setPlannedStart] = useState(() => new Date().toISOString().slice(0, 10));
   const [plannedEnd, setPlannedEnd] = useState(() => new Date().toISOString().slice(0, 10));
   const [plannedProgress, setPlannedProgress] = useState(0);
   const [actualProgress, setActualProgress] = useState(0);
   const [sortOrder, setSortOrder] = useState(0);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTaskCode, setEditTaskCode] = useState("");
+  const [editTaskName, setEditTaskName] = useState("");
+  const [editCategory, setEditCategory] = useState<ProgressScheduleCategory>(DEFAULT_PROGRESS_SCHEDULE_CATEGORY);
+  const [editPlannedStart, setEditPlannedStart] = useState(() => new Date().toISOString().slice(0, 10));
+  const [editPlannedEnd, setEditPlannedEnd] = useState(() => new Date().toISOString().slice(0, 10));
+  const [editPlannedProgress, setEditPlannedProgress] = useState(0);
+  const [editActualProgress, setEditActualProgress] = useState(0);
+  const [editSortOrder, setEditSortOrder] = useState(0);
+  const [editOriginalCategory, setEditOriginalCategory] = useState("");
+  const [editOriginalTaskCode, setEditOriginalTaskCode] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [taskCodeLoadingTarget, setTaskCodeLoadingTarget] = useState<"create" | "edit" | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  const isTaskCodeLoading = taskCodeLoadingTarget === "create";
+  const isEditTaskCodeLoading = taskCodeLoadingTarget === "edit";
 
   const ganttRows = useMemo(() => {
     return items
@@ -136,6 +180,133 @@ export default function MasterSchedulePage() {
     void loadData(1);
   }, [loadData]);
 
+  const loadNextTaskCode = useCallback(
+    async (
+      nextCategory: ProgressScheduleCategory,
+      options: {
+        target?: "create" | "edit";
+        excludeItemId?: string;
+      } = {},
+    ) => {
+      if (!canWrite) {
+        return;
+      }
+
+      const target = options.target ?? "create";
+      setTaskCodeLoadingTarget(target);
+      try {
+        const params = new URLSearchParams({ category: nextCategory });
+        if (options.excludeItemId) {
+          params.set("excludeItemId", options.excludeItemId);
+        }
+        const response = await fetch(`/api/progress/schedule/next-task-code?${params.toString()}`, {
+          cache: "no-store",
+        });
+        const result = (await response.json()) as NextTaskCodeResponse;
+        if (!result.ok || !result.data) {
+          throw new Error(result.error ?? "작업코드 조회 실패");
+        }
+
+        if (target === "edit") {
+          setEditTaskCode(result.data.taskCode);
+        } else {
+          setTaskCode(result.data.taskCode);
+        }
+      } catch (err) {
+        if (target === "edit") {
+          setEditTaskCode("");
+        } else {
+          setTaskCode("");
+        }
+        setError(err instanceof Error ? err.message : "작업코드 조회 실패");
+      } finally {
+        setTaskCodeLoadingTarget(null);
+      }
+    },
+    [canWrite],
+  );
+
+  useEffect(() => {
+    if (!canWrite) {
+      return;
+    }
+    void loadNextTaskCode(category);
+  }, [canWrite, category, loadNextTaskCode]);
+
+  function handleOpenEditModal(row: ScheduleRow) {
+    const rawCategory = String(row.category ?? "");
+    const normalizedCategory: ProgressScheduleCategory = isProgressScheduleCategory(rawCategory)
+      ? rawCategory
+      : DEFAULT_PROGRESS_SCHEDULE_CATEGORY;
+
+    setEditingId(row._id);
+    setEditTaskCode(row.taskCode ?? "");
+    setEditTaskName(row.taskName ?? "");
+    setEditCategory(normalizedCategory);
+    setEditPlannedStart(row.plannedStart ? String(row.plannedStart).slice(0, 10) : new Date().toISOString().slice(0, 10));
+    setEditPlannedEnd(row.plannedEnd ? String(row.plannedEnd).slice(0, 10) : new Date().toISOString().slice(0, 10));
+    setEditPlannedProgress(Number(row.plannedProgress ?? 0));
+    setEditActualProgress(Number(row.actualProgress ?? 0));
+    setEditSortOrder(Number(row.sortOrder ?? 0));
+    setEditOriginalCategory(String(row.category ?? ""));
+    setEditOriginalTaskCode(row.taskCode ?? "");
+    setError(null);
+    setMessage(null);
+  }
+
+  function handleCloseEditModal() {
+    if (isUpdating || isEditTaskCodeLoading) {
+      return;
+    }
+
+    setEditingId(null);
+    setEditTaskCode("");
+    setEditTaskName("");
+    setEditCategory(DEFAULT_PROGRESS_SCHEDULE_CATEGORY);
+    setEditPlannedStart(new Date().toISOString().slice(0, 10));
+    setEditPlannedEnd(new Date().toISOString().slice(0, 10));
+    setEditPlannedProgress(0);
+    setEditActualProgress(0);
+    setEditSortOrder(0);
+    setEditOriginalCategory("");
+    setEditOriginalTaskCode("");
+  }
+
+  function handleOpenDeleteModal(row: ScheduleRow) {
+    setDeleteTarget({
+      _id: row._id,
+      taskCode: row.taskCode,
+      taskName: row.taskName,
+    });
+    setError(null);
+    setMessage(null);
+  }
+
+  function handleCloseDeleteModal() {
+    if (deletingId) {
+      return;
+    }
+    setDeleteTarget(null);
+  }
+
+  function handleEditCategoryChange(nextCategory: ProgressScheduleCategory) {
+    setEditCategory(nextCategory);
+
+    if (nextCategory === editOriginalCategory) {
+      setEditTaskCode(editOriginalTaskCode);
+      return;
+    }
+
+    if (!editingId) {
+      return;
+    }
+
+    void loadNextTaskCode(nextCategory, {
+      target: "edit",
+      excludeItemId: editingId,
+    });
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canWrite) {
@@ -151,7 +322,6 @@ export default function MasterSchedulePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          taskCode,
           taskName,
           category,
           plannedStart,
@@ -169,13 +339,14 @@ export default function MasterSchedulePage() {
 
       setTaskCode("");
       setTaskName("");
-      setCategory("공정");
+      setCategory(DEFAULT_PROGRESS_SCHEDULE_CATEGORY);
       setPlannedStart(new Date().toISOString().slice(0, 10));
       setPlannedEnd(new Date().toISOString().slice(0, 10));
       setPlannedProgress(0);
       setActualProgress(0);
       setSortOrder(0);
       setMessage("공정 항목이 등록되었습니다.");
+      await loadNextTaskCode(DEFAULT_PROGRESS_SCHEDULE_CATEGORY);
       await loadData(1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "공정표 등록 실패");
@@ -183,6 +354,159 @@ export default function MasterSchedulePage() {
       setIsSubmitting(false);
     }
   }
+
+  async function handleUpdate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingId) {
+      return;
+    }
+
+    setIsUpdating(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response = await fetch(`/api/progress/schedule/${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskName: editTaskName,
+          category: editCategory,
+          plannedStart: editPlannedStart,
+          plannedEnd: editPlannedEnd,
+          plannedProgress: clampProgress(editPlannedProgress),
+          actualProgress: clampProgress(editActualProgress),
+          sortOrder: editSortOrder,
+        }),
+      });
+
+      const result = (await response.json()) as MutationResponse;
+      if (!result.ok) {
+        throw new Error(result.error ?? "공정 항목 수정 실패");
+      }
+
+      setEditingId(null);
+      setEditTaskCode("");
+      setEditTaskName("");
+      setEditCategory(DEFAULT_PROGRESS_SCHEDULE_CATEGORY);
+      setEditPlannedStart(new Date().toISOString().slice(0, 10));
+      setEditPlannedEnd(new Date().toISOString().slice(0, 10));
+      setEditPlannedProgress(0);
+      setEditActualProgress(0);
+      setEditSortOrder(0);
+      setEditOriginalCategory("");
+      setEditOriginalTaskCode("");
+      setMessage("공정 항목이 수정되었습니다.");
+      await loadData(page);
+      await loadNextTaskCode(category);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "공정 항목 수정 실패");
+    } finally {
+      setIsUpdating(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) {
+      return;
+    }
+
+    setDeletingId(deleteTarget._id);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response = await fetch(`/api/progress/schedule/${deleteTarget._id}`, {
+        method: "DELETE",
+      });
+      const result = (await response.json()) as MutationResponse;
+      if (!result.ok) {
+        throw new Error(result.error ?? "공정 항목 삭제 실패");
+      }
+
+      setDeleteTarget(null);
+      setMessage("공정 항목이 삭제되었습니다.");
+      await loadData(1);
+      await loadNextTaskCode(category);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "공정 항목 삭제 실패");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  const columns = useMemo<DataTableColumn<ScheduleRow>[]>(() => {
+    const baseColumns: DataTableColumn<ScheduleRow>[] = [
+      { key: "category", header: "분류", className: "w-36" },
+      { key: "taskCode", header: "작업코드", className: "w-28" },
+      { key: "taskName", header: "작업명", className: "hidden" },
+      {
+        key: "plannedStart",
+        header: "계획시작",
+        className: "w-28",
+        render: (value) => new Date(String(value)).toLocaleDateString("ko-KR"),
+      },
+      {
+        key: "plannedEnd",
+        header: "계획종료",
+        className: "w-28",
+        render: (value) => new Date(String(value)).toLocaleDateString("ko-KR"),
+      },
+      {
+        key: "plannedProgress",
+        header: "계획",
+        className: "w-20 text-right",
+        render: (value) => `${Number(value).toFixed(1)}%`,
+      },
+      {
+        key: "actualProgress",
+        header: "실적",
+        className: "w-20 text-right",
+        render: (value) => `${Number(value).toFixed(1)}%`,
+      },
+      {
+        key: "_id",
+        header: "진도차",
+        className: "w-40",
+        render: (_, row) => {
+          const gap = Number((row.actualProgress - row.plannedProgress).toFixed(1));
+          const tone = gap >= 0 ? "text-success" : "text-danger";
+          return <span className={`text-sm font-medium ${tone}`}>{gap > 0 ? `+${gap}` : gap}%</span>;
+        },
+      },
+    ];
+
+    if (!canWrite) {
+      return baseColumns;
+    }
+
+    return [
+      ...baseColumns,
+      {
+        key: "actions",
+        header: "관리",
+        className: "w-32",
+        render: (_value, row) => (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handleOpenEditModal(row)}
+              className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-background-soft"
+            >
+              수정
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenDeleteModal(row)}
+              className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+            >
+              삭제
+            </button>
+          </div>
+        ),
+      },
+    ];
+  }, [canWrite, handleOpenDeleteModal, handleOpenEditModal]);
 
   return (
     <section className="space-y-4 rounded-xl border border-border bg-background-card p-6 shadow-[var(--shadow-soft)]">
@@ -225,15 +549,15 @@ export default function MasterSchedulePage() {
           <span className="block text-sm font-medium text-foreground">분류</span>
           <select
             value={categoryFilter}
-            onChange={(event) => setCategoryFilter(event.target.value)}
+            onChange={(event) => setCategoryFilter(event.target.value as "all" | ProgressScheduleCategory)}
             className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
           >
             <option value="all">전체</option>
-            <option value="공정">공정</option>
-            <option value="골조">골조</option>
-            <option value="마감">마감</option>
-            <option value="설비">설비</option>
-            <option value="전기">전기</option>
+            {PROGRESS_SCHEDULE_CATEGORIES.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
           </select>
         </label>
         <button
@@ -248,25 +572,35 @@ export default function MasterSchedulePage() {
       {canWrite ? (
         <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-border bg-background-soft p-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <FormInput
-              label="작업코드"
-              value={taskCode}
-              onChange={(event) => setTaskCode(event.target.value)}
-              placeholder="예: S-311"
-              required
-            />
+            <label className="space-y-1">
+              <span className="block text-sm font-medium text-foreground">분류</span>
+              <select
+                value={category}
+                onChange={(event) => setCategory(event.target.value as ProgressScheduleCategory)}
+                className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
+              >
+                {PROGRESS_SCHEDULE_CATEGORIES.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="space-y-1">
+              <span className="block text-sm font-medium text-foreground">작업코드</span>
+              <input
+                readOnly
+                value={isTaskCodeLoading ? "채번 중..." : taskCode}
+                className="h-9 w-full rounded-md border border-border bg-background-soft px-3 text-sm text-foreground outline-none"
+              />
+              <p className="text-xs text-foreground-muted">분류별로 자동 채번됩니다.</p>
+            </div>
             <FormInput
               label="작업명"
               value={taskName}
               onChange={(event) => setTaskName(event.target.value)}
               placeholder="예: 4동 저수조 계단"
               required
-            />
-            <FormInput
-              label="분류"
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-              placeholder="예: 골조"
             />
             <FormInput
               label="정렬순서"
@@ -309,7 +643,7 @@ export default function MasterSchedulePage() {
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isTaskCodeLoading || !taskCode}
               className="rounded-md bg-[#ecebe8] px-4 py-2 text-sm font-medium text-foreground hover:bg-[#e2e0db] disabled:opacity-60"
             >
               공정 항목 등록
@@ -351,9 +685,7 @@ export default function MasterSchedulePage() {
               return (
                 <div key={row._id} className="grid min-w-[880px] grid-cols-[180px_1fr] items-center gap-2">
                   <div className="space-y-0.5">
-                    <p className="truncate text-xs font-medium text-foreground">
-                      {row.taskCode} · {row.taskName}
-                    </p>
+                    <p className="truncate text-xs font-medium text-foreground">{row.taskCode}</p>
                     <p className="text-[11px] text-foreground-muted">
                       {row.plannedProgress.toFixed(1)}% / {row.actualProgress.toFixed(1)}%
                     </p>
@@ -386,51 +718,137 @@ export default function MasterSchedulePage() {
       </section>
 
       <DataTable<ScheduleRow>
-        columns={[
-          { key: "taskCode", header: "작업코드", className: "w-28" },
-          { key: "taskName", header: "작업명" },
-          { key: "category", header: "분류", className: "w-20" },
-          {
-            key: "plannedStart",
-            header: "계획시작",
-            className: "w-28",
-            render: (value) => new Date(String(value)).toLocaleDateString("ko-KR"),
-          },
-          {
-            key: "plannedEnd",
-            header: "계획종료",
-            className: "w-28",
-            render: (value) => new Date(String(value)).toLocaleDateString("ko-KR"),
-          },
-          {
-            key: "plannedProgress",
-            header: "계획",
-            className: "w-20 text-right",
-            render: (value) => `${Number(value).toFixed(1)}%`,
-          },
-          {
-            key: "actualProgress",
-            header: "실적",
-            className: "w-20 text-right",
-            render: (value) => `${Number(value).toFixed(1)}%`,
-          },
-          {
-            key: "_id",
-            header: "진도차",
-            className: "w-40",
-            render: (_, row) => {
-              const gap = Number((row.actualProgress - row.plannedProgress).toFixed(1));
-              const tone = gap >= 0 ? "text-success" : "text-danger";
-              return <span className={`text-sm font-medium ${tone}`}>{gap > 0 ? `+${gap}` : gap}%</span>;
-            },
-          },
-        ]}
+        columns={columns}
         data={items}
         rowKey={(row) => row._id}
         emptyMessage={isLoading ? "불러오는 중..." : "등록된 공정 항목이 없습니다."}
       />
 
       <Pagination page={page} totalPages={totalPages} onPageChange={(nextPage) => void loadData(nextPage)} />
+
+      <Modal open={Boolean(editingId)} title="공정 항목 수정" onClose={handleCloseEditModal}>
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            void handleUpdate(event);
+          }}
+        >
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label className="space-y-1">
+              <span className="block text-sm font-medium text-foreground">분류</span>
+              <select
+                value={editCategory}
+                onChange={(event) => handleEditCategoryChange(event.target.value as ProgressScheduleCategory)}
+                className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
+              >
+                {PROGRESS_SCHEDULE_CATEGORIES.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="space-y-1">
+              <span className="block text-sm font-medium text-foreground">작업코드</span>
+              <input
+                readOnly
+                value={isEditTaskCodeLoading ? "채번 중..." : editTaskCode}
+                className="h-9 w-full rounded-md border border-border bg-background-soft px-3 text-sm text-foreground outline-none"
+              />
+              <p className="text-xs text-foreground-muted">분류가 바뀌면 작업코드도 자동으로 다시 생성됩니다.</p>
+            </div>
+            <FormInput
+              label="작업명"
+              value={editTaskName}
+              onChange={(event) => setEditTaskName(event.target.value)}
+              placeholder="예: 4동 저수조 계단"
+              required
+            />
+            <FormInput
+              label="정렬순서"
+              type="number"
+              value={String(editSortOrder)}
+              onChange={(event) => setEditSortOrder(Number(event.target.value || "0"))}
+            />
+            <FormInput
+              label="계획시작"
+              type="date"
+              value={editPlannedStart}
+              onChange={(event) => setEditPlannedStart(event.target.value)}
+              required
+            />
+            <FormInput
+              label="계획종료"
+              type="date"
+              value={editPlannedEnd}
+              onChange={(event) => setEditPlannedEnd(event.target.value)}
+              required
+            />
+            <FormInput
+              label="계획진도율(%)"
+              type="number"
+              min={0}
+              max={100}
+              value={String(editPlannedProgress)}
+              onChange={(event) => setEditPlannedProgress(Number(event.target.value || "0"))}
+            />
+            <FormInput
+              label="실적진도율(%)"
+              type="number"
+              min={0}
+              max={100}
+              value={String(editActualProgress)}
+              onChange={(event) => setEditActualProgress(Number(event.target.value || "0"))}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleCloseEditModal}
+              disabled={isUpdating || isEditTaskCodeLoading}
+              className="rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft disabled:opacity-60"
+            >
+              취소
+            </button>
+            <button
+              type="submit"
+              disabled={isUpdating || isEditTaskCodeLoading || !editTaskCode}
+              className="rounded-md border border-border bg-background-soft px-4 py-2 text-sm font-medium text-foreground hover:bg-background-card disabled:opacity-60"
+            >
+              {isUpdating ? "저장 중..." : "저장"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={Boolean(deleteTarget)} title="공정 항목 삭제" onClose={handleCloseDeleteModal}>
+        <div className="space-y-4">
+          <p className="text-sm text-foreground">
+            <span className="font-medium">{deleteTarget?.taskCode ?? "-"}</span>
+            {" · "}
+            {deleteTarget?.taskName ?? "-"}
+            {" 항목을 삭제하시겠습니까?"}
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleCloseDeleteModal}
+              disabled={Boolean(deletingId)}
+              className="rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft disabled:opacity-60"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              disabled={Boolean(deletingId)}
+              className="rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-100 disabled:opacity-60"
+            >
+              {deletingId ? "삭제 중..." : "삭제"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </section>
   );
 }

@@ -7,6 +7,8 @@ import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import ScheduleItem from "@/models/ScheduleItem";
 import { logCreate } from "@/lib/audit-logger";
+import { isProgressScheduleCategory } from "@/lib/progress-schedule-category";
+import { findNextProgressScheduleTaskCode, normalizeProgressSchedulePayload } from "@/lib/progress-schedule";
 
 function parsePositiveInt(rawValue: string | null, fallback: number, max = 100): number {
   const parsed = Number(rawValue ?? String(fallback));
@@ -42,6 +44,9 @@ export async function GET(request: NextRequest) {
       filter.$or = [{ taskCode: regex }, { taskName: regex }, { category: regex }];
     }
     if (category !== "all") {
+      if (!isProgressScheduleCategory(category)) {
+        throw VALIDATION_ERROR("category 파라미터가 올바르지 않습니다.");
+      }
       filter.category = category;
     }
 
@@ -71,47 +76,41 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as Record<string, unknown>;
-    const taskCode = String(body.taskCode ?? "").trim();
-    const taskName = String(body.taskName ?? "").trim();
-    if (!taskCode || !taskName) {
-      throw VALIDATION_ERROR("taskCode, taskName은 필수입니다.");
+    const payload = normalizeProgressSchedulePayload(body);
+    let created = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const nextTaskCode = await findNextProgressScheduleTaskCode(siteId, payload.category);
+
+      try {
+        created = await ScheduleItem.create({
+          siteId,
+          taskCode: nextTaskCode,
+          taskName: payload.taskName,
+          category: payload.category,
+          plannedStart: payload.plannedStart,
+          plannedEnd: payload.plannedEnd,
+          actualStart: payload.actualStart,
+          actualEnd: payload.actualEnd,
+          plannedProgress: payload.plannedProgress,
+          actualProgress: payload.actualProgress,
+          parentTaskId: payload.parentTaskId,
+          sortOrder: payload.sortOrder,
+          createdBy: requester.userId ?? undefined,
+          updatedBy: requester.userId ?? undefined,
+        });
+        break;
+      } catch (error) {
+        const isDuplicateTaskCode =
+          error instanceof mongoose.mongo.MongoServerError && error.code === 11000;
+        if (!isDuplicateTaskCode || attempt === 2) {
+          throw error;
+        }
+      }
     }
 
-    const plannedStart = body.plannedStart ? new Date(String(body.plannedStart)) : null;
-    const plannedEnd = body.plannedEnd ? new Date(String(body.plannedEnd)) : null;
-    if (!plannedStart || Number.isNaN(plannedStart.getTime())) {
-      throw VALIDATION_ERROR("plannedStart는 필수입니다.");
+    if (!created) {
+      throw new ApiError("작업코드를 생성하지 못했습니다.", 500, "TASK_CODE_GENERATION_FAILED");
     }
-    if (!plannedEnd || Number.isNaN(plannedEnd.getTime())) {
-      throw VALIDATION_ERROR("plannedEnd는 필수입니다.");
-    }
-
-    const rawParentTaskId = String(body.parentTaskId ?? "").trim();
-    if (rawParentTaskId && !mongoose.Types.ObjectId.isValid(rawParentTaskId)) {
-      throw VALIDATION_ERROR("parentTaskId 형식이 올바르지 않습니다.");
-    }
-
-    const plannedProgressValue = Number(body.plannedProgress ?? 0);
-    const actualProgressValue = Number(body.actualProgress ?? 0);
-    const plannedProgress = Number.isFinite(plannedProgressValue) ? Math.max(0, Math.min(100, plannedProgressValue)) : 0;
-    const actualProgress = Number.isFinite(actualProgressValue) ? Math.max(0, Math.min(100, actualProgressValue)) : 0;
-
-    const created = await ScheduleItem.create({
-      siteId,
-      taskCode,
-      taskName,
-      category: String(body.category ?? "공정").trim(),
-      plannedStart,
-      plannedEnd,
-      actualStart: body.actualStart ? new Date(String(body.actualStart)) : undefined,
-      actualEnd: body.actualEnd ? new Date(String(body.actualEnd)) : undefined,
-      plannedProgress,
-      actualProgress,
-      parentTaskId: rawParentTaskId ? new mongoose.Types.ObjectId(rawParentTaskId) : undefined,
-      sortOrder: Number(body.sortOrder ?? 0),
-      createdBy: requester.userId ?? undefined,
-      updatedBy: requester.userId ?? undefined,
-    });
 
     await logCreate(String(siteId), "progress_schedule", String(created._id), requester);
     return success(created);
