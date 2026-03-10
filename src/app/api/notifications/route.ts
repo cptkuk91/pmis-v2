@@ -3,7 +3,7 @@ import { success } from "@/lib/api-response";
 import { handleApiError } from "@/lib/api-error";
 import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
-import { fetchOpenMeteoDailyByAddress } from "@/lib/open-meteo";
+import { fetchOpenMeteoDaily } from "@/lib/open-meteo";
 import Site from "@/models/Site";
 import DocumentModel from "@/models/Document";
 import DrawingReview from "@/models/DrawingReview";
@@ -80,7 +80,9 @@ export async function GET() {
       return success({ summary: { unreadCount: 0 }, items: [] as NotificationItem[] });
     }
 
-    const site = await Site.findById(siteId).select({ siteName: 1, address: 1 }).lean();
+    const site = await Site.findById(siteId)
+      .select({ siteName: 1, address: 1, latitude: 1, longitude: 1 })
+      .lean();
 
     const [pendingDocs, pendingDocList, pendingReviewCount, pendingReviewList, openIssueCount, openIssueList, failedSyncCount, failedSyncList] = await Promise.all([
       DocumentModel.countDocuments({ siteId, status: { $in: ["draft", "in_review"] } }),
@@ -111,9 +113,11 @@ export async function GET() {
 
     if (site) {
       try {
-        const weather = await fetchOpenMeteoDailyByAddress({
+        const weather = await fetchOpenMeteoDaily({
           address: site.address,
           siteName: site.siteName,
+          latitude: site.latitude,
+          longitude: site.longitude,
           days: 2,
         });
         const warnings = weather.weather.filter((item) => item.warning);

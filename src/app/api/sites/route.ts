@@ -9,6 +9,10 @@ import { ApiError, handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { requireRole } from "@/lib/permissions";
 import { logCreate } from "@/lib/audit-logger";
 import { getNextSiteCode } from "@/lib/site-code";
+import {
+  geocodeSiteCoordinates,
+  parseSiteCoordinateInput,
+} from "@/lib/site-coordinates";
 
 type SiteStatus = "active" | "completed" | "suspended";
 
@@ -77,6 +81,8 @@ function toSiteSummary(site: {
   siteCode: string;
   siteName: string;
   address?: string;
+  latitude?: number;
+  longitude?: number;
   status: string;
   startDate?: Date;
   endDate?: Date;
@@ -88,6 +94,8 @@ function toSiteSummary(site: {
     siteCode: site.siteCode,
     siteName: site.siteName,
     address: site.address ?? "",
+    latitude: site.latitude ?? null,
+    longitude: site.longitude ?? null,
     status: site.status,
     startDate: site.startDate ?? null,
     endDate: site.endDate ?? null,
@@ -149,9 +157,31 @@ export async function POST(request: NextRequest) {
     const status = normalizeSiteStatus(body.status);
     const startDate = parseDate(body.startDate);
     const endDate = parseDate(body.endDate);
+    let manualCoordinates;
+    try {
+      manualCoordinates = parseSiteCoordinateInput({
+        latitude: body.latitude,
+        longitude: body.longitude,
+      });
+    } catch (err) {
+      throw VALIDATION_ERROR(err instanceof Error ? err.message : "좌표 값이 올바르지 않습니다.");
+    }
 
     if (!siteName) {
       throw VALIDATION_ERROR("siteName은 필수입니다.");
+    }
+
+    let latitude: number | undefined = manualCoordinates.latitude;
+    let longitude: number | undefined = manualCoordinates.longitude;
+    if (!manualCoordinates.isProvided && (address || siteName)) {
+      try {
+        const coordinates = await geocodeSiteCoordinates({ address, siteName });
+        latitude = coordinates?.latitude;
+        longitude = coordinates?.longitude;
+      } catch {
+        latitude = undefined;
+        longitude = undefined;
+      }
     }
 
     let siteCode = "";
@@ -165,6 +195,8 @@ export async function POST(request: NextRequest) {
           siteCode,
           siteName,
           address: address || undefined,
+          latitude,
+          longitude,
           description: description || undefined,
           status,
           startDate,

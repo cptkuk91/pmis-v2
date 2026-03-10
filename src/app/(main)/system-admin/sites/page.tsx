@@ -10,6 +10,8 @@ type SiteRow = {
   siteCode: string;
   siteName: string;
   address?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   status: "active" | "completed" | "suspended";
   startDate?: string | null;
   endDate?: string | null;
@@ -439,6 +441,9 @@ export default function SiteManagementPage() {
                 onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))}
                 className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
               />
+              <span className="block text-xs text-foreground-muted">
+                저장 시 주소 기준으로 위도/경도를 자동으로 계산합니다.
+              </span>
             </label>
             <label className="space-y-1">
               <span className="block text-sm font-medium text-foreground">상태</span>
@@ -541,13 +546,25 @@ export default function SiteManagementPage() {
                     </td>
                     <td className="px-3 py-2 text-foreground-muted">
                       {editingId === item._id ? (
-                        <input
-                          value={editForm.address}
-                          onChange={(event) => setEditForm((prev) => ({ ...prev, address: event.target.value }))}
-                          className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
-                        />
+                        <div className="space-y-1">
+                          <input
+                            value={editForm.address}
+                            onChange={(event) => setEditForm((prev) => ({ ...prev, address: event.target.value }))}
+                            className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
+                          />
+                          <p className="text-[11px] text-foreground-muted">
+                            저장 시 좌표를 다시 계산합니다.
+                          </p>
+                        </div>
                       ) : (
-                        item.address || "-"
+                        <div className="space-y-0.5">
+                          <p>{item.address || "-"}</p>
+                          {typeof item.latitude === "number" && typeof item.longitude === "number" ? (
+                            <p className="text-[11px] text-foreground-muted">
+                              {item.latitude.toFixed(6)}, {item.longitude.toFixed(6)}
+                            </p>
+                          ) : null}
+                        </div>
                       )}
                     </td>
                     <td className="px-3 py-2 text-foreground-muted">

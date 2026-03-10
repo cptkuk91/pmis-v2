@@ -20,6 +20,14 @@ export type OpenMeteoDailyWeather = {
   source: "open-meteo";
 };
 
+type OpenMeteoDailyOptions = {
+  address?: string | null;
+  siteName?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  days: number;
+};
+
 type OpenMeteoGeocodingResponse = {
   results?: Array<{
     name: string;
@@ -43,6 +51,17 @@ type OpenMeteoForecastResponse = {
     wind_speed_10m_max?: number[];
   };
 };
+
+type NominatimSearchResponse = Array<{
+  lat?: string;
+  lon?: string;
+  display_name?: string;
+  address?: {
+    country?: string;
+    state?: string;
+    county?: string;
+  };
+}>;
 
 function makeAddressQueries(address: string | null | undefined, siteName: string | null | undefined): string[] {
   const sanitizedAddress = String(address ?? "").trim();
@@ -78,12 +97,17 @@ function makeAddressQueries(address: string | null | undefined, siteName: string
   return [...candidates].filter((value) => value.length >= 2);
 }
 
-async function fetchJsonWithTimeout<T>(url: string, timeoutMs = 8000): Promise<T> {
+async function fetchJsonWithTimeout<T>(
+  url: string,
+  init?: RequestInit,
+  timeoutMs = 8000,
+): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(url, {
+      ...init,
       signal: controller.signal,
       next: { revalidate: 1800 },
     });
@@ -96,6 +120,41 @@ async function fetchJsonWithTimeout<T>(url: string, timeoutMs = 8000): Promise<T
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function resolveNominatimLocation(query: string): Promise<OpenMeteoLocation | null> {
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("limit", "1");
+  url.searchParams.set("q", query);
+
+  const response = await fetchJsonWithTimeout<NominatimSearchResponse>(
+    url.toString(),
+    {
+      headers: {
+        "Accept-Language": "ko",
+        "User-Agent": "pmis/1.0 (weather geocoding)",
+      },
+    },
+  );
+
+  const first = response[0];
+  const latitude = Number(first?.lat ?? NaN);
+  const longitude = Number(first?.lon ?? NaN);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  return {
+    query,
+    displayName: String(first?.display_name ?? query).trim() || query,
+    latitude,
+    longitude,
+    timezone: "Asia/Seoul",
+    country: first?.address?.country,
+    admin1: first?.address?.state,
+    admin2: first?.address?.county,
+  };
 }
 
 function codeToKoreanCondition(code: number): string {
@@ -162,15 +221,47 @@ export async function resolveOpenMeteoLocation(
     };
   }
 
+  for (const query of queries) {
+    const fallbackLocation = await resolveNominatimLocation(query);
+    if (fallbackLocation) {
+      return fallbackLocation;
+    }
+  }
+
   throw new Error("Open-Meteo 좌표 조회에 실패했습니다.");
 }
 
-export async function fetchOpenMeteoDailyByAddress(options: {
-  address: string | null | undefined;
-  siteName: string | null | undefined;
-  days: number;
-}): Promise<{ location: OpenMeteoLocation; weather: OpenMeteoDailyWeather[] }> {
-  const location = await resolveOpenMeteoLocation(options.address, options.siteName);
+export async function resolveOpenMeteoSiteLocation(
+  options: Omit<OpenMeteoDailyOptions, "days">,
+): Promise<OpenMeteoLocation> {
+  const latitude = typeof options.latitude === "number" && Number.isFinite(options.latitude)
+    ? options.latitude
+    : null;
+  const longitude = typeof options.longitude === "number" && Number.isFinite(options.longitude)
+    ? options.longitude
+    : null;
+
+  if (latitude !== null && longitude !== null) {
+    const label = String(options.address ?? "").trim() ||
+      String(options.siteName ?? "").trim() ||
+      `${latitude}, ${longitude}`;
+
+    return {
+      query: `${latitude},${longitude}`,
+      displayName: label,
+      latitude,
+      longitude,
+      timezone: "Asia/Seoul",
+    };
+  }
+
+  return resolveOpenMeteoLocation(options.address, options.siteName);
+}
+
+export async function fetchOpenMeteoDaily(
+  options: OpenMeteoDailyOptions,
+): Promise<{ location: OpenMeteoLocation; weather: OpenMeteoDailyWeather[] }> {
+  const location = await resolveOpenMeteoSiteLocation(options);
 
   const forecastUrl = new URL("https://api.open-meteo.com/v1/forecast");
   forecastUrl.searchParams.set("latitude", String(location.latitude));
@@ -212,4 +303,12 @@ export async function fetchOpenMeteoDailyByAddress(options: {
   });
 
   return { location, weather };
+}
+
+export async function fetchOpenMeteoDailyByAddress(options: {
+  address: string | null | undefined;
+  siteName: string | null | undefined;
+  days: number;
+}): Promise<{ location: OpenMeteoLocation; weather: OpenMeteoDailyWeather[] }> {
+  return fetchOpenMeteoDaily(options);
 }

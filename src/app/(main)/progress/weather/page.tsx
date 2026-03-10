@@ -30,7 +30,7 @@ type WeatherResponse = {
   ok: boolean;
   data: WeatherRow[];
   meta?: {
-    provider?: "open-meteo" | "snapshot" | "mock";
+    provider?: "open-meteo" | "snapshot";
     reason?: string;
     siteName?: string;
     siteAddress?: string;

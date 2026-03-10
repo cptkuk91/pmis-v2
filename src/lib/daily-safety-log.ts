@@ -1,7 +1,7 @@
 import { VALIDATION_ERROR } from "@/lib/api-error";
 import Site from "@/models/Site";
 import WeatherSnapshot from "@/models/WeatherSnapshot";
-import { fetchOpenMeteoDailyByAddress } from "@/lib/open-meteo";
+import { fetchOpenMeteoDaily } from "@/lib/open-meteo";
 import type { Status } from "@/types";
 
 export type DailySafetyLogPayload = {
@@ -95,7 +95,9 @@ export async function resolveDailySafetyLogWeather(options: {
     };
   }
 
-  const site = await Site.findById(options.siteId).select({ siteName: 1, address: 1 }).lean();
+  const site = await Site.findById(options.siteId)
+    .select({ siteName: 1, address: 1, latitude: 1, longitude: 1 })
+    .lean();
   if (!site) {
     return { condition: "", source: "unavailable" };
   }
@@ -110,9 +112,11 @@ export async function resolveDailySafetyLogWeather(options: {
   }
 
   try {
-    const openMeteo = await fetchOpenMeteoDailyByAddress({
+    const openMeteo = await fetchOpenMeteoDaily({
       address: site.address,
       siteName: site.siteName,
+      latitude: site.latitude,
+      longitude: site.longitude,
       days: dayDiff + 1,
     });
     const matched = openMeteo.weather.find((item) => item.observedDate.slice(0, 10) === dateKey);

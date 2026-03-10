@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/db";
-import { success } from "@/lib/api-response";
+import { error, success } from "@/lib/api-response";
 import { handleApiError } from "@/lib/api-error";
 import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import WeatherSnapshot from "@/models/WeatherSnapshot";
 import Site from "@/models/Site";
-import { fetchOpenMeteoDailyByAddress } from "@/lib/open-meteo";
+import { fetchOpenMeteoDaily } from "@/lib/open-meteo";
 
 function parsePositiveInt(rawValue: string | null, fallback: number, max = 31): number {
   const parsed = Number(rawValue ?? String(fallback));
@@ -14,36 +14,6 @@ function parsePositiveInt(rawValue: string | null, fallback: number, max = 31): 
     return fallback;
   }
   return Math.min(Math.floor(parsed), max);
-}
-
-function createMockWeather(days: number) {
-  const conditions = ["맑음", "구름많음", "흐림", "비", "소나기", "눈"];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  return Array.from({ length: days }, (_, index) => {
-    const observedDate = new Date(today);
-    observedDate.setDate(today.getDate() + index);
-
-    const condition = conditions[index % conditions.length];
-    const temperatureMin = 2 + (index % 6);
-    const temperatureMax = temperatureMin + 6 + (index % 3);
-    const precipitationChance = Math.min(100, index % 3 === 0 ? 60 : 15 + ((index * 7) % 40));
-    const windSpeed = 2 + (index % 5);
-    const warning = precipitationChance >= 60 ? "강수 주의" : windSpeed >= 6 ? "강풍 주의" : "";
-
-    return {
-      _id: `mock-${index + 1}`,
-      observedDate: observedDate.toISOString(),
-      condition,
-      temperatureMin,
-      temperatureMax,
-      precipitationChance,
-      windSpeed,
-      warning,
-      source: "mock",
-    };
-  });
 }
 
 export async function GET(request: NextRequest) {
@@ -54,35 +24,39 @@ export async function GET(request: NextRequest) {
     const days = parsePositiveInt(request.nextUrl.searchParams.get("days"), 7);
     const siteId = await resolveSiteId(request);
     if (!siteId) {
-      return success(createMockWeather(days), {
-        provider: "mock",
-        reason: "site_not_found",
-      });
+      return error("현재 선택된 현장 정보를 찾을 수 없어 날씨를 조회할 수 없습니다.", 404);
     }
 
     const fromDateRaw = request.nextUrl.searchParams.get("from");
-    const site = await Site.findById(siteId).select({ siteName: 1, address: 1 }).lean();
+    const site = await Site.findById(siteId)
+      .select({ siteName: 1, address: 1, latitude: 1, longitude: 1 })
+      .lean();
+    if (!site) {
+      return error("현장 정보를 찾을 수 없어 날씨를 조회할 수 없습니다.", 404);
+    }
 
-    if (site) {
-      try {
-        const openMeteo = await fetchOpenMeteoDailyByAddress({
-          address: site.address,
-          siteName: site.siteName,
-          days,
-        });
+    let openMeteoError: string | null = null;
+    try {
+      const openMeteo = await fetchOpenMeteoDaily({
+        address: site.address,
+        siteName: site.siteName,
+        latitude: site.latitude,
+        longitude: site.longitude,
+        days,
+      });
 
-        return success(openMeteo.weather, {
-          provider: "open-meteo",
-          siteName: site.siteName,
-          siteAddress: site.address ?? "",
-          resolvedAddress: openMeteo.location.displayName,
-          latitude: openMeteo.location.latitude,
-          longitude: openMeteo.location.longitude,
-          timezone: openMeteo.location.timezone,
-        });
-      } catch {
-        // Open-Meteo 실패 시 DB 스냅샷/모의 데이터로 폴백
-      }
+      return success(openMeteo.weather, {
+        provider: "open-meteo",
+        siteName: site.siteName,
+        siteAddress: site.address ?? "",
+        resolvedAddress: openMeteo.location.displayName,
+        latitude: openMeteo.location.latitude,
+        longitude: openMeteo.location.longitude,
+        timezone: openMeteo.location.timezone,
+      });
+    } catch (fetchError) {
+      openMeteoError =
+        fetchError instanceof Error ? fetchError.message : "현장 날씨 데이터를 조회할 수 없습니다.";
     }
 
     const filter: Record<string, unknown> = { siteId };
@@ -101,17 +75,12 @@ export async function GET(request: NextRequest) {
     if (snapshots.length > 0) {
       return success(snapshots, {
         provider: "snapshot",
-        siteName: site?.siteName ?? "",
-        siteAddress: site?.address ?? "",
+        siteName: site.siteName ?? "",
+        siteAddress: site.address ?? "",
       });
     }
 
-    return success(createMockWeather(days), {
-      provider: "mock",
-      reason: "no_snapshot",
-      siteName: site?.siteName ?? "",
-      siteAddress: site?.address ?? "",
-    });
+    return error(openMeteoError ?? "현장 날씨 데이터를 조회할 수 없습니다.", 502);
   } catch (err) {
     return handleApiError(err);
   }

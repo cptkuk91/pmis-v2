@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start -p 3070",
     "lint": "eslint",
+    "backfill:site-coordinates": "node --import tsx scripts/backfill-site-coordinates.ts",
     "phase6:team1:e2e": "node scripts/phase6/team1/e2e-smoke.mjs",
     "phase6:team1:perf": "node scripts/phase6/team1/perf-check.mjs",
     "phase6:team1:index": "node scripts/phase6/team1/index-check.mjs",

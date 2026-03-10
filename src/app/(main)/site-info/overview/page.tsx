@@ -12,6 +12,8 @@ type SiteData = {
   siteCode: string;
   siteName: string;
   address: string;
+  latitude?: number | null;
+  longitude?: number | null;
   status: "active" | "completed" | "suspended";
   startDate: string;
   endDate: string;
@@ -242,6 +244,9 @@ export default function OverviewPage() {
                 value={form.address}
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
               />
+              <p className="text-xs text-foreground-muted">
+                저장 시 주소 기준으로 위도/경도를 자동 갱신합니다.
+              </p>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="space-y-1">
@@ -320,6 +325,18 @@ export default function OverviewPage() {
             <div>
               <dt className="text-sm text-foreground-muted">상태</dt>
               <dd className="mt-1 text-sm font-medium text-foreground">{site.status}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-foreground-muted">위도</dt>
+              <dd className="mt-1 text-sm font-medium text-foreground">
+                {typeof site.latitude === "number" ? site.latitude.toFixed(6) : "-"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm text-foreground-muted">경도</dt>
+              <dd className="mt-1 text-sm font-medium text-foreground">
+                {typeof site.longitude === "number" ? site.longitude.toFixed(6) : "-"}
+              </dd>
             </div>
             <div>
               <dt className="text-sm text-foreground-muted">착공일</dt>

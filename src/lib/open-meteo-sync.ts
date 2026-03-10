@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import Site from "@/models/Site";
 import WeatherSnapshot from "@/models/WeatherSnapshot";
-import { fetchOpenMeteoDailyByAddress } from "@/lib/open-meteo";
+import { fetchOpenMeteoDaily } from "@/lib/open-meteo";
 
 type SyncResult = {
   siteId: string;
@@ -19,14 +19,18 @@ export async function syncOpenMeteoForSite(options: {
 }): Promise<SyncResult> {
   const days = Math.max(1, Math.min(14, Number(options.days ?? 7)));
 
-  const site = await Site.findById(options.siteId).select({ siteName: 1, address: 1 }).lean();
+  const site = await Site.findById(options.siteId)
+    .select({ siteName: 1, address: 1, latitude: 1, longitude: 1 })
+    .lean();
   if (!site) {
     throw new Error("동기화 대상 현장을 찾을 수 없습니다.");
   }
 
-  const weather = await fetchOpenMeteoDailyByAddress({
+  const weather = await fetchOpenMeteoDaily({
     address: site.address,
     siteName: site.siteName,
+    latitude: site.latitude,
+    longitude: site.longitude,
     days,
   });
 

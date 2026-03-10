@@ -5,6 +5,8 @@ export interface ISite extends Document {
   siteCode: string;
   siteName: string;
   address?: string;
+  latitude?: number;
+  longitude?: number;
   status: "active" | "completed" | "suspended";
   startDate?: Date;
   endDate?: Date;
@@ -22,6 +24,8 @@ const SiteSchema = new Schema<ISite>(
     siteCode: { type: String, required: true, unique: true, trim: true },
     siteName: { type: String, required: true, trim: true },
     address: { type: String, trim: true },
+    latitude: { type: Number },
+    longitude: { type: Number },
     status: {
       type: String,
       enum: ["active", "completed", "suspended"],

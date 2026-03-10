@@ -8,6 +8,11 @@ import { success } from "@/lib/api-response";
 import { ApiError, handleApiError, NOT_FOUND, VALIDATION_ERROR } from "@/lib/api-error";
 import { logDelete, logUpdate } from "@/lib/audit-logger";
 import { requireRole, type AppRole } from "@/lib/permissions";
+import {
+  geocodeSiteCoordinates,
+  hasSiteCoordinates,
+  parseSiteCoordinateInput,
+} from "@/lib/site-coordinates";
 
 type MembershipRole = "site_admin" | "manager" | "viewer";
 type SiteStatus = "active" | "completed" | "suspended";
@@ -198,6 +203,15 @@ export async function PATCH(
     const shouldDelegateProjectManager = body.delegateProjectManager === true;
     const previousProjectManagerId = site.projectManager ? String(site.projectManager) : null;
     let nextProjectManagerId: string | null = previousProjectManagerId;
+    let parsedCoordinates;
+    try {
+      parsedCoordinates = parseSiteCoordinateInput({
+        latitude: body.latitude,
+        longitude: body.longitude,
+      });
+    } catch (err) {
+      throw VALIDATION_ERROR(err instanceof Error ? err.message : "좌표 값이 올바르지 않습니다.");
+    }
 
     if (body.siteName !== undefined) {
       const siteName = String(body.siteName ?? "").trim();
@@ -236,6 +250,56 @@ export async function PATCH(
       const endDate = parseDate(body.endDate);
       site.endDate = endDate ?? undefined;
       updates.endDate = endDate;
+    }
+
+    if (parsedCoordinates.isProvided) {
+      site.latitude = parsedCoordinates.latitude;
+      site.longitude = parsedCoordinates.longitude;
+      updates.latitude = parsedCoordinates.latitude ?? null;
+      updates.longitude = parsedCoordinates.longitude ?? null;
+    } else if (body.address !== undefined) {
+      const nextAddress = site.address ?? "";
+      if (!nextAddress) {
+        site.latitude = undefined;
+        site.longitude = undefined;
+        updates.latitude = null;
+        updates.longitude = null;
+      } else {
+        try {
+          const coordinates = await geocodeSiteCoordinates({
+            address: nextAddress,
+            siteName: site.siteName,
+          });
+          site.latitude = coordinates?.latitude;
+          site.longitude = coordinates?.longitude;
+          updates.latitude = coordinates?.latitude ?? null;
+          updates.longitude = coordinates?.longitude ?? null;
+        } catch {
+          site.latitude = undefined;
+          site.longitude = undefined;
+          updates.latitude = null;
+          updates.longitude = null;
+        }
+      }
+    } else if (
+      body.siteName !== undefined &&
+      !hasSiteCoordinates(site.latitude, site.longitude)
+    ) {
+      try {
+        const coordinates = await geocodeSiteCoordinates({
+          address: site.address,
+          siteName: site.siteName,
+        });
+        site.latitude = coordinates?.latitude;
+        site.longitude = coordinates?.longitude;
+        updates.latitude = coordinates?.latitude ?? null;
+        updates.longitude = coordinates?.longitude ?? null;
+      } catch {
+        site.latitude = undefined;
+        site.longitude = undefined;
+        updates.latitude = null;
+        updates.longitude = null;
+      }
     }
 
     if (body.projectManager !== undefined) {
