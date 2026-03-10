@@ -33,7 +33,7 @@ const ReportSchema = new Schema<IReport>(
     reportType: {
       type: String,
       enum: ["supervision", "daily", "weekly"],
-      default: "daily",
+      default: "weekly",
       index: true,
     },
     title: { type: String, required: true, trim: true },

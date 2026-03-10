@@ -2,13 +2,12 @@ import { NextRequest } from "next/server";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import { paginated, success } from "@/lib/api-response";
-import { ApiError, handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
+import { ApiError, handleApiError } from "@/lib/api-error";
 import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import Report from "@/models/Report";
 import { logCreate } from "@/lib/audit-logger";
-import type { ReportType } from "@/models/Report";
-import type { Status } from "@/types";
+import { isProgressReportStatus, isProgressReportType, normalizeProgressReportPayload } from "@/lib/progress-report";
 
 function parsePositiveInt(rawValue: string | null, fallback: number, max = 100): number {
   const parsed = Number(rawValue ?? String(fallback));
@@ -20,14 +19,6 @@ function parsePositiveInt(rawValue: string | null, fallback: number, max = 100):
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function isReportType(value: string): value is ReportType {
-  return ["supervision", "daily", "weekly"].includes(value);
-}
-
-function isStatus(value: string): value is Status {
-  return ["draft", "in_review", "approved", "rejected", "completed"].includes(value);
 }
 
 export async function GET(request: NextRequest) {
@@ -52,10 +43,10 @@ export async function GET(request: NextRequest) {
       const regex = new RegExp(escapeRegex(keyword), "i");
       filter.$or = [{ title: regex }, { content: regex }, { authorName: regex }];
     }
-    if (reportType !== "all" && isReportType(reportType)) {
+    if (reportType !== "all" && isProgressReportType(reportType)) {
       filter.reportType = reportType;
     }
-    if (status !== "all" && isStatus(status)) {
+    if (status !== "all" && isProgressReportStatus(status)) {
       filter.status = status;
     }
 
@@ -81,44 +72,28 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as Record<string, unknown>;
-    const title = String(body.title ?? "").trim();
-    if (!title) {
-      throw VALIDATION_ERROR("제목은 필수입니다.");
-    }
-
-    const reportTypeInput = String(body.reportType ?? "daily");
-    const reportType: ReportType = isReportType(reportTypeInput) ? reportTypeInput : "daily";
-    const statusInput = String(body.status ?? "draft");
-    const status: Status = isStatus(statusInput) ? statusInput : "draft";
-    const progressRateValue = Number(body.progressRate ?? 0);
-    const progressRate = Number.isFinite(progressRateValue) ? Math.max(0, Math.min(100, progressRateValue)) : 0;
-    const attachments = Array.isArray(body.attachments) ? body.attachments : [];
-    const normalizedAttachments = attachments
-      .filter((row): row is Record<string, unknown> => typeof row === "object" && row !== null)
-      .map((row, index) => ({
-        fileAssetId: String(row.fileAssetId ?? "").trim(),
-        fileName: String(row.fileName ?? "").trim(),
-        sortOrder: Number(row.sortOrder ?? index),
-      }))
-      .filter((row) => row.fileAssetId && mongoose.Types.ObjectId.isValid(row.fileAssetId))
-      .map((row, index) => ({
-        fileAssetId: new mongoose.Types.ObjectId(row.fileAssetId),
-        fileName: row.fileName || row.fileAssetId,
-        sortOrder: Number.isFinite(row.sortOrder) ? Math.floor(row.sortOrder) : index,
-      }));
+    const payload = normalizeProgressReportPayload(body, {
+      defaultReportType: "weekly",
+      defaultStatus: "draft",
+      defaultAuthorName: requester.userName,
+    });
+    const requesterObjectId =
+      requester.userId && mongoose.Types.ObjectId.isValid(requester.userId)
+        ? new mongoose.Types.ObjectId(requester.userId)
+        : undefined;
 
     const created = await Report.create({
       siteId,
-      reportType,
-      title,
-      reportDate: body.reportDate ? new Date(String(body.reportDate)) : new Date(),
-      authorName: String(body.authorName ?? requester.userName).trim(),
-      content: String(body.content ?? "").trim(),
-      progressRate,
-      attachments: normalizedAttachments,
-      status,
-      createdBy: requester.userId ?? undefined,
-      updatedBy: requester.userId ?? undefined,
+      reportType: payload.reportType,
+      title: payload.title,
+      reportDate: payload.reportDate,
+      authorName: payload.authorName,
+      content: payload.content,
+      progressRate: payload.progressRate,
+      attachments: payload.attachments,
+      status: payload.status,
+      createdBy: requesterObjectId,
+      updatedBy: requesterObjectId,
     });
 
     await logCreate(String(siteId), "progress_report", String(created._id), requester);
