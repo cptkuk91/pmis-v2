@@ -7,7 +7,10 @@ import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import DailySafetyLog from "@/models/DailySafetyLog";
 import { logDelete, logUpdate } from "@/lib/audit-logger";
-import { normalizeDailySafetyLogPayload } from "@/lib/daily-safety-log";
+import {
+  normalizeDailySafetyLogPayload,
+  resolveDailySafetyLogWeather,
+} from "@/lib/daily-safety-log";
 
 type Params = {
   params: Promise<{ itemId: string }>;
@@ -49,9 +52,16 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       defaultStatus: item.status,
       defaultManagerName: item.managerName,
     });
+    const weather = await resolveDailySafetyLogWeather({
+      siteId: String(siteId),
+      logDate: payload.logDate,
+    });
+    if (!weather.condition) {
+      throw VALIDATION_ERROR("선택한 일자의 현장 기상 정보를 가져오지 못했습니다.");
+    }
 
     item.logDate = payload.logDate;
-    item.weather = payload.weather;
+    item.weather = weather.condition;
     item.workersCount = payload.workersCount;
     item.hazards = payload.hazards;
     item.actions = payload.actions;

@@ -1,4 +1,7 @@
 import { VALIDATION_ERROR } from "@/lib/api-error";
+import Site from "@/models/Site";
+import WeatherSnapshot from "@/models/WeatherSnapshot";
+import { fetchOpenMeteoDailyByAddress } from "@/lib/open-meteo";
 import type { Status } from "@/types";
 
 export type DailySafetyLogPayload = {
@@ -16,6 +19,21 @@ type NormalizeOptions = {
   defaultStatus?: Status;
   defaultManagerName?: string;
 };
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+export type DailySafetyLogWeatherResult = {
+  condition: string;
+  source: "open-meteo" | "snapshot" | "unavailable";
+};
+
+function toDateKey(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+function toUtcDate(dateKey: string): Date {
+  return new Date(`${dateKey}T00:00:00.000Z`);
+}
 
 export function isDailySafetyLogStatus(value: string): value is Status {
   return (
@@ -54,4 +72,60 @@ export function normalizeDailySafetyLogPayload(
       String(body.managerName ?? options.defaultManagerName ?? "현장소장").trim() || "현장소장",
     status: statusInput,
   };
+}
+
+export async function resolveDailySafetyLogWeather(options: {
+  siteId: string;
+  logDate: Date;
+}): Promise<DailySafetyLogWeatherResult> {
+  const dateKey = toDateKey(options.logDate);
+  const observedDate = toUtcDate(dateKey);
+
+  const snapshot = await WeatherSnapshot.findOne({
+    siteId: options.siteId,
+    observedDate,
+  })
+    .select({ condition: 1 })
+    .lean();
+
+  if (snapshot?.condition) {
+    return {
+      condition: String(snapshot.condition).trim(),
+      source: "snapshot",
+    };
+  }
+
+  const site = await Site.findById(options.siteId).select({ siteName: 1, address: 1 }).lean();
+  if (!site) {
+    return { condition: "", source: "unavailable" };
+  }
+
+  const today = new Date();
+  const todayUtc = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+  const targetUtc = toUtcDate(dateKey);
+  const dayDiff = Math.round((targetUtc.getTime() - todayUtc.getTime()) / DAY_IN_MS);
+
+  if (dayDiff < 0 || dayDiff > 13) {
+    return { condition: "", source: "unavailable" };
+  }
+
+  try {
+    const openMeteo = await fetchOpenMeteoDailyByAddress({
+      address: site.address,
+      siteName: site.siteName,
+      days: dayDiff + 1,
+    });
+    const matched = openMeteo.weather.find((item) => item.observedDate.slice(0, 10) === dateKey);
+
+    if (!matched?.condition) {
+      return { condition: "", source: "unavailable" };
+    }
+
+    return {
+      condition: matched.condition,
+      source: "open-meteo",
+    };
+  } catch {
+    return { condition: "", source: "unavailable" };
+  }
 }

@@ -109,7 +109,7 @@ function getTodayDateInputValue(): string {
 function createDefaultForm(): DailySafetyLogFormState {
   return {
     logDate: getTodayDateInputValue(),
-    weather: "맑음",
+    weather: "",
     workersCount: 0,
     hazards: "",
     actions: "",
@@ -120,10 +120,15 @@ function createDefaultForm(): DailySafetyLogFormState {
 
 type DailySafetyLogFormFieldsProps = {
   form: DailySafetyLogFormState;
+  weatherLoading: boolean;
   onChange: (patch: Partial<DailySafetyLogFormState>) => void;
 };
 
-function DailySafetyLogFormFields({ form, onChange }: DailySafetyLogFormFieldsProps) {
+function DailySafetyLogFormFields({
+  form,
+  weatherLoading,
+  onChange,
+}: DailySafetyLogFormFieldsProps) {
   return (
     <>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -131,15 +136,25 @@ function DailySafetyLogFormFields({ form, onChange }: DailySafetyLogFormFieldsPr
           label="일지일자"
           type="date"
           value={form.logDate}
-          onChange={(event) => onChange({ logDate: event.target.value })}
+          onChange={(event) => onChange({ logDate: event.target.value, weather: "" })}
           required
         />
-        <FormInput
-          label="기상"
-          value={form.weather}
-          onChange={(event) => onChange({ weather: event.target.value })}
-          placeholder="예: 맑음, 흐림"
-        />
+        <label className="space-y-1">
+          <span className="block text-sm font-medium text-foreground">기상</span>
+          <input
+            readOnly
+            value={weatherLoading ? "불러오는 중..." : form.weather}
+            placeholder="현장 기상 정보를 불러옵니다."
+            className="h-9 w-full rounded-md border border-border bg-background-soft px-3 text-sm text-foreground"
+          />
+          <p className="text-xs text-foreground-muted">
+            {weatherLoading
+              ? "현장 Open-Meteo 날씨를 불러오는 중입니다."
+              : form.weather
+                ? "현장 Open-Meteo 연동값입니다."
+                : "선택한 일자의 현장 기상 정보를 찾지 못했습니다."}
+          </p>
+        </label>
         <FormInput
           label="근무인원"
           type="number"
@@ -216,6 +231,8 @@ export default function SafetyDailyLogPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isCreateWeatherLoading, setIsCreateWeatherLoading] = useState(false);
+  const [isEditWeatherLoading, setIsEditWeatherLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -252,9 +269,68 @@ export default function SafetyDailyLogPage() {
     [keyword, statusFilter],
   );
 
+  const loadWeatherCondition = useCallback(async (logDate: string, target: "create" | "edit") => {
+    if (!logDate) {
+      if (target === "create") {
+        setForm((prev) => ({ ...prev, weather: "" }));
+      } else {
+        setEditForm((prev) => ({ ...prev, weather: "" }));
+      }
+      return;
+    }
+
+    if (target === "create") {
+      setIsCreateWeatherLoading(true);
+    } else {
+      setIsEditWeatherLoading(true);
+    }
+
+    try {
+      const response = await fetch(`/api/safety/daily-logs/weather?date=${encodeURIComponent(logDate)}`, {
+        cache: "no-store",
+      });
+      const result = (await response.json()) as {
+        ok: boolean;
+        data?: { condition?: string };
+      };
+      const condition = result.ok ? String(result.data?.condition ?? "").trim() : "";
+
+      if (target === "create") {
+        setForm((prev) => (prev.logDate === logDate && condition ? { ...prev, weather: condition } : prev));
+      } else {
+        setEditForm((prev) =>
+          prev.logDate === logDate && condition ? { ...prev, weather: condition } : prev,
+        );
+      }
+    } catch {
+      if (target === "create") {
+        setForm((prev) => (prev.logDate === logDate ? { ...prev, weather: "" } : prev));
+      } else {
+        setEditForm((prev) => (prev.logDate === logDate ? { ...prev, weather: "" } : prev));
+      }
+    } finally {
+      if (target === "create") {
+        setIsCreateWeatherLoading(false);
+      } else {
+        setIsEditWeatherLoading(false);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     void loadData(1);
   }, [loadData]);
+
+  useEffect(() => {
+    void loadWeatherCondition(form.logDate, "create");
+  }, [form.logDate, loadWeatherCondition]);
+
+  useEffect(() => {
+    if (!editingId) {
+      return;
+    }
+    void loadWeatherCondition(editForm.logDate, "edit");
+  }, [editingId, editForm.logDate, loadWeatherCondition]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -525,13 +601,14 @@ export default function SafetyDailyLogPage() {
         >
           <DailySafetyLogFormFields
             form={form}
+            weatherLoading={isCreateWeatherLoading}
             onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
           />
 
           <div className="flex justify-end pt-2">
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isCreateWeatherLoading || !form.weather}
               className="rounded-md bg-[#ecebe8] px-4 py-2 text-sm font-medium text-foreground hover:bg-[#e2e0db] disabled:opacity-60"
             >
               {isSubmitting ? "저장 중..." : "등록"}
@@ -561,6 +638,7 @@ export default function SafetyDailyLogPage() {
         <form className="space-y-4" onSubmit={handleUpdate}>
           <DailySafetyLogFormFields
             form={editForm}
+            weatherLoading={isEditWeatherLoading}
             onChange={(patch) => setEditForm((prev) => ({ ...prev, ...patch }))}
           />
           <div className="flex justify-end gap-2">
@@ -574,7 +652,7 @@ export default function SafetyDailyLogPage() {
             </button>
             <button
               type="submit"
-              disabled={isUpdating}
+              disabled={isUpdating || isEditWeatherLoading || !editForm.weather}
               className="rounded-md border border-border bg-background-soft px-4 py-2 text-sm font-medium text-foreground hover:bg-background-card disabled:opacity-60"
             >
               {isUpdating ? "저장 중..." : "저장"}

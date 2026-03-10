@@ -1,12 +1,16 @@
 import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/db";
 import { paginated, success } from "@/lib/api-response";
-import { ApiError, handleApiError } from "@/lib/api-error";
+import { ApiError, handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import DailySafetyLog from "@/models/DailySafetyLog";
 import { logCreate } from "@/lib/audit-logger";
-import { isDailySafetyLogStatus, normalizeDailySafetyLogPayload } from "@/lib/daily-safety-log";
+import {
+  isDailySafetyLogStatus,
+  normalizeDailySafetyLogPayload,
+  resolveDailySafetyLogWeather,
+} from "@/lib/daily-safety-log";
 
 function parsePositiveInt(rawValue: string | null, fallback: number, max = 100): number {
   const parsed = Number(rawValue ?? String(fallback));
@@ -71,11 +75,18 @@ export async function POST(request: NextRequest) {
       defaultStatus: "draft",
       defaultManagerName: requester.userName,
     });
+    const weather = await resolveDailySafetyLogWeather({
+      siteId: String(siteId),
+      logDate: payload.logDate,
+    });
+    if (!weather.condition) {
+      throw VALIDATION_ERROR("선택한 일자의 현장 기상 정보를 가져오지 못했습니다.");
+    }
 
     const created = await DailySafetyLog.create({
       siteId,
       logDate: payload.logDate,
-      weather: payload.weather,
+      weather: weather.condition,
       workersCount: payload.workersCount,
       hazards: payload.hazards,
       actions: payload.actions,
