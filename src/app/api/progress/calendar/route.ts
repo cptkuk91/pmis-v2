@@ -6,15 +6,10 @@ import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import ProjectCalendarEvent from "@/models/ProjectCalendarEvent";
 import { logCreate } from "@/lib/audit-logger";
-
-type CalendarCategory = "general" | "milestone" | "inspection" | "meeting";
-
-const categoryColorMap: Record<CalendarCategory, string> = {
-  general: "#2f76d2",
-  milestone: "#7c5cff",
-  inspection: "#cc7a00",
-  meeting: "#217a4f",
-};
+import { normalizeProgressCalendarPayload } from "@/lib/progress-calendar";
+import {
+  isProgressCalendarCategory,
+} from "@/lib/progress-calendar-category";
 
 function parsePositiveInt(rawValue: string | null, fallback: number, max = 100): number {
   const parsed = Number(rawValue ?? String(fallback));
@@ -45,26 +40,6 @@ function parseMonthRange(month: string): { start: Date; end: Date } | null {
   return { start, end };
 }
 
-function parseDateValue(rawValue: unknown, fieldName: string): Date {
-  const parsed = new Date(String(rawValue ?? ""));
-  if (Number.isNaN(parsed.getTime())) {
-    throw VALIDATION_ERROR(`${fieldName} 형식이 올바르지 않습니다.`);
-  }
-  return parsed;
-}
-
-function isCalendarCategory(value: string): value is CalendarCategory {
-  return value === "general" || value === "milestone" || value === "inspection" || value === "meeting";
-}
-
-function normalizeCategory(rawValue: unknown): CalendarCategory {
-  const raw = String(rawValue ?? "general").trim();
-  if (isCalendarCategory(raw)) {
-    return raw;
-  }
-  return "general";
-}
-
 export async function GET(request: NextRequest) {
   try {
     await requireRole("viewer");
@@ -76,13 +51,16 @@ export async function GET(request: NextRequest) {
     }
 
     const page = parsePositiveInt(request.nextUrl.searchParams.get("page"), 1);
-    const limit = parsePositiveInt(request.nextUrl.searchParams.get("limit"), 20);
+    const limit = parsePositiveInt(request.nextUrl.searchParams.get("limit"), 20, 300);
     const keyword = String(request.nextUrl.searchParams.get("q") ?? "").trim();
     const category = String(request.nextUrl.searchParams.get("category") ?? "all").trim();
     const month = String(request.nextUrl.searchParams.get("month") ?? "").trim();
     const skip = (page - 1) * limit;
 
-    const filter: Record<string, unknown> = { siteId };
+    const filter: Record<string, unknown> = {
+      siteId,
+      category: { $ne: "meeting" },
+    };
 
     if (keyword) {
       const regex = new RegExp(escapeRegex(keyword), "i");
@@ -90,7 +68,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (category !== "all") {
-      if (!isCalendarCategory(category)) {
+      if (!isProgressCalendarCategory(category)) {
         throw VALIDATION_ERROR("category 파라미터가 올바르지 않습니다.");
       }
       filter.category = category;
@@ -133,27 +111,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as Record<string, unknown>;
-    const title = String(body.title ?? "").trim();
-    if (!title) {
-      throw VALIDATION_ERROR("title은 필수입니다.");
-    }
-
-    const startDate = parseDateValue(body.startDate, "startDate");
-    const endDate = parseDateValue(body.endDate, "endDate");
-    if (endDate.getTime() < startDate.getTime()) {
-      throw VALIDATION_ERROR("endDate는 startDate보다 빠를 수 없습니다.");
-    }
-    const category = normalizeCategory(body.category);
+    const payload = normalizeProgressCalendarPayload(body);
 
     const created = await ProjectCalendarEvent.create({
       siteId,
-      title,
-      category,
-      startDate,
-      endDate,
-      isAllDay: Boolean(body.isAllDay ?? true),
-      description: String(body.description ?? "").trim(),
-      color: categoryColorMap[category],
+      title: payload.title,
+      category: payload.category,
+      startDate: payload.startDate,
+      endDate: payload.endDate,
+      isAllDay: payload.isAllDay,
+      description: payload.description,
+      color: payload.color,
       createdBy: requester.userId ?? undefined,
       updatedBy: requester.userId ?? undefined,
     });
