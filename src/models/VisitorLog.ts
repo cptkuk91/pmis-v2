@@ -9,6 +9,7 @@ export interface IVisitorLog extends Document {
   visitDate: Date;
   checkInTime?: string;
   checkOutTime?: string;
+  contactUserId?: mongoose.Types.ObjectId;
   contactPerson?: string;
   phone?: string;
   vehicleNo?: string;
@@ -29,6 +30,7 @@ const VisitorLogSchema = new Schema<IVisitorLog>(
     visitDate: { type: Date, required: true },
     checkInTime: { type: String, trim: true },
     checkOutTime: { type: String, trim: true },
+    contactUserId: { type: Schema.Types.ObjectId, ref: "User" },
     contactPerson: { type: String, trim: true },
     phone: { type: String, trim: true },
     vehicleNo: { type: String, trim: true },

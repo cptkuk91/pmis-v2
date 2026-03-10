@@ -3,6 +3,7 @@ import { baseFieldsPlugin } from "@/lib/mongoose-plugins";
 
 export interface ISitePersonnel extends Document {
   siteId: mongoose.Types.ObjectId;
+  userId?: mongoose.Types.ObjectId;
   category: "constructor" | "partner" | "government";
   name: string;
   company?: string;
@@ -23,6 +24,7 @@ export interface ISitePersonnel extends Document {
 const SitePersonnelSchema = new Schema<ISitePersonnel>(
   {
     siteId: { type: Schema.Types.ObjectId, ref: "Site", required: true },
+    userId: { type: Schema.Types.ObjectId, ref: "User" },
     category: {
       type: String,
       enum: ["constructor", "partner", "government"],
