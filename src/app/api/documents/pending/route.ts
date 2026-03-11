@@ -1,18 +1,19 @@
 import { NextRequest } from "next/server";
-import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import { success } from "@/lib/api-response";
 import { handleApiError } from "@/lib/api-error";
 import { requireRole } from "@/lib/permissions";
+import { listPendingDocuments } from "@/lib/document-approval";
 import { resolveSiteId } from "@/lib/site-context";
 
-type PendingDoc = {
-  _id: string;
-  docNo: string;
-  title: string;
-  status: string;
-  updatedAt: Date | null;
-};
+function parsePositiveInt(rawValue: string | null, fallback: number, max = 100): number {
+  const parsed = Number(rawValue ?? String(fallback));
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return fallback;
+  }
+
+  return Math.min(Math.floor(parsed), max);
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,26 +22,12 @@ export async function GET(request: NextRequest) {
 
     const siteId = await resolveSiteId(request);
     if (!siteId) {
-      return success<PendingDoc[]>([]);
+      return success([]);
     }
 
-    const db = mongoose.connection.db;
-    if (!db) {
-      return success<PendingDoc[]>([]);
-    }
-
-    const docs = (await db
-      .collection("documents")
-      .find({
-        siteId: new mongoose.Types.ObjectId(siteId),
-        status: { $in: ["draft", "in_review"] },
-      })
-      .project({ docNo: 1, title: 1, status: 1, updatedAt: 1 })
-      .sort({ updatedAt: -1 })
-      .limit(20)
-      .toArray()) as PendingDoc[];
-
-    return success(docs);
+    const limit = parsePositiveInt(request.nextUrl.searchParams.get("limit"), 20);
+    const items = await listPendingDocuments(siteId, { limit });
+    return success(items, { total: items.length });
   } catch (err) {
     return handleApiError(err);
   }

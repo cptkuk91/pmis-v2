@@ -7,9 +7,11 @@ import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import { assertNoUnsafeHtml, assertSafeMutationRequest } from "@/lib/request-security";
 import { logUpdate, logDelete } from "@/lib/audit-logger";
+import { summarizeDocumentApprovalLines } from "@/lib/document-approval";
 import DocumentModel from "@/models/Document";
 import DocumentAttachment from "@/models/DocumentAttachment";
 import DocumentApprovalLine from "@/models/DocumentApprovalLine";
+import FileAsset from "@/models/FileAsset";
 import type { Status } from "@/types";
 
 type Params = {
@@ -172,12 +174,96 @@ export async function GET(request: NextRequest, { params }: Params) {
       throw NOT_FOUND("문서");
     }
 
-    const [attachments, approvalLines] = await Promise.all([
+    const [rawAttachments, approvalLines] = await Promise.all([
       DocumentAttachment.find({ siteId, documentId }).sort({ sortOrder: 1 }).lean(),
       DocumentApprovalLine.find({ siteId, documentId }).sort({ order: 1 }).lean(),
     ]);
 
-    return success({ document, attachments, approvalLines });
+    const fileAssetIds = rawAttachments.map((attachment) => String(attachment.fileAssetId));
+    const fileAssets =
+      fileAssetIds.length > 0
+        ? await FileAsset.find({ _id: { $in: fileAssetIds }, siteId })
+            .select({ originalName: 1, storagePath: 1 })
+            .lean<
+              Array<{
+                _id: unknown;
+                originalName?: string;
+                storagePath?: string;
+              }>
+            >()
+        : [];
+
+    const fileAssetMap = new Map(
+      fileAssets.map((item) => [
+        String(item._id),
+        {
+          originalName: item.originalName ?? "",
+          storagePath: item.storagePath ?? "",
+        },
+      ]),
+    );
+
+    const attachments = rawAttachments.map((attachment) => {
+      const fileAsset = fileAssetMap.get(String(attachment.fileAssetId));
+      const storagePath = fileAsset?.storagePath ?? "";
+
+      return {
+        _id: String(attachment._id),
+        fileAssetId: String(attachment.fileAssetId),
+        fileName: attachment.fileName,
+        sortOrder: attachment.sortOrder,
+        originalName: fileAsset?.originalName ?? attachment.fileName,
+        storagePath,
+        url: storagePath ? `/uploads/${storagePath}` : "",
+      };
+    });
+
+    const normalizedApprovalLines = approvalLines.map((line) => ({
+      _id: String(line._id),
+      order: line.order,
+      approverName: line.approverName,
+      approverRoleTitle: line.approverRoleTitle,
+      status: line.status,
+      actedAt: line.actedAt ?? null,
+      comment: line.comment ?? "",
+    }));
+    const approvalSummary = summarizeDocumentApprovalLines(
+      normalizedApprovalLines.map((line) => ({
+        ...line,
+        documentId,
+      })),
+    );
+
+    const documentWithTimestamps = document as typeof document & {
+      updatedAt?: Date | null;
+    };
+    const normalizedDocument = {
+      _id: String(document._id),
+      docNo: document.docNo,
+      title: document.title,
+      content: document.content,
+      draftByName: document.draftByName,
+      senderName: document.senderName,
+      receiverName: document.receiverName,
+      status: document.status,
+      submittedAt: document.submittedAt ?? null,
+      updatedAt: documentWithTimestamps.updatedAt ?? null,
+    };
+
+    return success({
+      document: normalizedDocument,
+      attachments,
+      approvalLines: normalizedApprovalLines,
+      approvalSummary: {
+        totalSteps: approvalSummary.totalSteps,
+        approvedSteps: approvalSummary.approvedSteps,
+        rejectedSteps: approvalSummary.rejectedSteps,
+        pendingSteps: approvalSummary.pendingSteps,
+        currentApprovalOrder: approvalSummary.currentLine?.order ?? 0,
+        currentApproverName: approvalSummary.currentLine?.approverName ?? "",
+        currentApproverRoleTitle: approvalSummary.currentLine?.approverRoleTitle ?? "",
+      },
+    });
   } catch (err) {
     return handleApiError(err);
   }

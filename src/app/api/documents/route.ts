@@ -4,10 +4,11 @@ import { connectDB } from "@/lib/db";
 import { paginated, success } from "@/lib/api-response";
 import { ApiError, handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { requireRole } from "@/lib/permissions";
+import { generateNextDocumentNo } from "@/lib/document-doc-no";
 import { resolveSiteId } from "@/lib/site-context";
 import { assertNoUnsafeHtml, assertSafeMutationRequest } from "@/lib/request-security";
 import { logCreate } from "@/lib/audit-logger";
-import DocumentModel from "@/models/Document";
+import DocumentModel, { type IDocument } from "@/models/Document";
 import DocumentAttachment from "@/models/DocumentAttachment";
 import DocumentApprovalLine from "@/models/DocumentApprovalLine";
 import type { Status } from "@/types";
@@ -62,18 +63,13 @@ function isLedgerDirectionCompatible(ledgerType: LedgerType, direction: Directio
   return true;
 }
 
-async function generateDocNo(siteId: string): Promise<string> {
-  const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  for (let index = 0; index < 6; index += 1) {
-    const suffix = Math.floor(Math.random() * 9000) + 1000;
-    const candidate = `DOC-${datePart}-${suffix}`;
-    const exists = await DocumentModel.exists({ siteId, docNo: candidate });
-    if (!exists) {
-      return candidate;
-    }
-  }
+function isDuplicateDocNoError(error: unknown): boolean {
+  const duplicateKeyError = error as {
+    code?: number;
+    keyPattern?: Record<string, unknown>;
+  };
 
-  return `DOC-${datePart}-${Date.now()}`;
+  return duplicateKeyError?.code === 11000 && Boolean(duplicateKeyError?.keyPattern?.docNo);
 }
 
 export async function GET(request: NextRequest) {
@@ -150,7 +146,6 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json()) as Record<string, unknown>;
     const requestedDocNo = String(body.docNo ?? "").trim();
-    const docNo = requestedDocNo || (await generateDocNo(siteId));
     const title = String(body.title ?? "").trim();
     const content = String(body.content ?? "").trim();
     if (!title) {
@@ -182,30 +177,48 @@ export async function POST(request: NextRequest) {
     const statusInput = String(body.status ?? "draft");
     const status: Status = isStatus(statusInput) ? statusInput : "draft";
 
-    const createdDocument = await DocumentModel.create({
-      siteId,
-      docNo,
-      title,
-      content,
-      ledgerType,
-      direction,
-      status,
-      categoryCode: String(body.categoryCode ?? "").trim().toUpperCase(),
-      senderName: String(body.senderName ?? requester.userName).trim(),
-      receiverName: String(body.receiverName ?? "").trim(),
-      draftByName: String(body.draftByName ?? requester.userName).trim(),
-      submittedAt: status === "in_review" ? new Date() : undefined,
-      sentAt: body.sentAt ? new Date(String(body.sentAt)) : undefined,
-      receivedAt: body.receivedAt ? new Date(String(body.receivedAt)) : undefined,
-      completedAt:
-        status === "approved" || status === "completed"
-          ? new Date()
-          : undefined,
-      currentApprovalOrder: Number(body.currentApprovalOrder ?? 0),
-      finalApproverName: String(body.finalApproverName ?? "").trim(),
-      createdBy: requester.userId ?? undefined,
-      updatedBy: requester.userId ?? undefined,
-    });
+    let createdDocument: IDocument | null = null;
+    let finalDocNo = requestedDocNo;
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      finalDocNo = requestedDocNo || (await generateNextDocumentNo(siteId));
+
+      try {
+        createdDocument = await DocumentModel.create({
+          siteId,
+          docNo: finalDocNo,
+          title,
+          content,
+          ledgerType,
+          direction,
+          status,
+          categoryCode: String(body.categoryCode ?? "").trim().toUpperCase(),
+          senderName: String(body.senderName ?? requester.userName).trim(),
+          receiverName: String(body.receiverName ?? "").trim(),
+          draftByName: String(body.draftByName ?? requester.userName).trim(),
+          submittedAt: status === "in_review" ? new Date() : undefined,
+          sentAt: body.sentAt ? new Date(String(body.sentAt)) : undefined,
+          receivedAt: body.receivedAt ? new Date(String(body.receivedAt)) : undefined,
+          completedAt:
+            status === "approved" || status === "completed"
+              ? new Date()
+              : undefined,
+          currentApprovalOrder: Number(body.currentApprovalOrder ?? 0),
+          finalApproverName: String(body.finalApproverName ?? "").trim(),
+          createdBy: requester.userId ?? undefined,
+          updatedBy: requester.userId ?? undefined,
+        });
+        break;
+      } catch (error) {
+        if (requestedDocNo || !isDuplicateDocNoError(error) || attempt === 4) {
+          throw error;
+        }
+      }
+    }
+
+    if (!createdDocument) {
+      throw new ApiError("문서번호 자동 생성에 실패했습니다.", 409, "DOC_NO_GENERATION_FAILED");
+    }
 
     const attachments = Array.isArray(body.attachments) ? body.attachments : [];
     const normalizedAttachments = attachments

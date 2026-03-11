@@ -1,11 +1,11 @@
 import { connectDB } from "@/lib/db";
 import { success } from "@/lib/api-response";
 import { handleApiError } from "@/lib/api-error";
+import { countPendingDocuments, listPendingDocuments } from "@/lib/document-approval";
 import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import { fetchOpenMeteoDaily } from "@/lib/open-meteo";
 import Site from "@/models/Site";
-import DocumentModel from "@/models/Document";
 import DrawingReview from "@/models/DrawingReview";
 import Issue from "@/models/Issue";
 import IntegrationSyncLog from "@/models/IntegrationSyncLog";
@@ -85,11 +85,8 @@ export async function GET() {
       .lean();
 
     const [pendingDocs, pendingDocList, pendingReviewCount, pendingReviewList, openIssueCount, openIssueList, failedSyncCount, failedSyncList] = await Promise.all([
-      DocumentModel.countDocuments({ siteId, status: { $in: ["draft", "in_review"] } }),
-      DocumentModel.find({ siteId, status: { $in: ["draft", "in_review"] } })
-        .sort({ updatedAt: -1, createdAt: -1 })
-        .limit(3)
-        .lean(),
+      countPendingDocuments(siteId),
+      listPendingDocuments(siteId, { limit: 3 }),
       DrawingReview.countDocuments({ siteId, decisionStatus: "pending" }),
       DrawingReview.find({ siteId, decisionStatus: "pending" })
         .sort({ requestedAt: -1, createdAt: -1 })
@@ -152,10 +149,12 @@ export async function GET() {
         id: `doc-${String(doc._id)}`,
         type: "document" as const,
         severity: "info" as const,
-        title: `미결문서 ${String(doc.docNo ?? "")}`,
-        message: String(doc.title ?? "문서 제목 없음"),
+        title: `결재 대기 ${String(doc.docNo ?? "")}`,
+        message: doc.currentApproverName
+          ? `${String(doc.title ?? "문서 제목 없음")} · 현재 결재자 ${doc.currentApproverName}`
+          : String(doc.title ?? "문서 제목 없음"),
         href: "/dashboard/pending-docs",
-        timestamp: toIsoString(readDateField(doc, "updatedAt", "createdAt")),
+        timestamp: toIsoString(readDateField(doc, "submittedAt", "updatedAt")),
       })),
     );
 

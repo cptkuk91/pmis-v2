@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { connectDB } from "@/lib/db";
+import { countPendingDocuments } from "@/lib/document-approval";
 import { resolveSiteId } from "@/lib/site-context";
 import Notice from "@/models/Notice";
 import Meeting from "@/models/Meeting";
 import Issue from "@/models/Issue";
-import DocumentModel from "@/models/Document";
 import DrawingReview from "@/models/DrawingReview";
 import { StatusBadge } from "@/components/ui/status-badge";
 
@@ -32,7 +32,7 @@ async function getDashboardSummary() {
       Notice.countDocuments({ siteId }),
       Meeting.countDocuments({ siteId, meetingDate: { $gte: startOfDay, $lt: endOfDay } }),
       Issue.countDocuments({ siteId, status: "open" }),
-      DocumentModel.countDocuments({ siteId, status: { $in: ["draft", "in_review"] } }),
+      countPendingDocuments(siteId),
       DrawingReview.countDocuments({ siteId, decisionStatus: "pending" }),
     ]);
 
@@ -51,7 +51,7 @@ async function getDashboardSummary() {
 export default async function DashboardPage() {
   const summary = await getDashboardSummary();
   const summaryCards = [
-    { title: "미결 문서", value: `${summary.pendingDocs}건`, status: "warning" as const },
+    { title: "결재 대기 문서", value: `${summary.pendingDocs}건`, status: "warning" as const },
     { title: "검토 대기", value: `${summary.pendingReviews}건`, status: "warning" as const },
     { title: "금일 회의", value: `${summary.meetingsToday}건`, status: "info" as const },
     { title: "신규 이슈", value: `${summary.openIssues}건`, status: "danger" as const },

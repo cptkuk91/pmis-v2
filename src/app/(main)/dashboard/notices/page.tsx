@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { DataTable, FormInput, Pagination, StatusBadge } from "@/components/ui";
+import { DataTable, FormInput, Modal, Pagination, StatusBadge } from "@/components/ui";
 import { hasMinRole, useCurrentUser } from "@/hooks/use-current-user";
 
 type NoticeItem = {
@@ -18,6 +18,11 @@ type NoticeResponse = {
   data: NoticeItem[];
   meta?: { page: number; totalPages: number; total: number };
   error?: string;
+};
+
+type DeleteTarget = {
+  _id: string;
+  title: string;
 };
 
 function formatDate(value: string): string {
@@ -40,8 +45,10 @@ export default function DashboardNoticesPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
 
   const loadNotices = useCallback(async (nextPage: number) => {
     setIsLoading(true);
@@ -128,28 +135,52 @@ export default function DashboardNoticesPage() {
     }
   }
 
-  async function handleDelete(noticeId: string) {
-    if (!canManage || !confirm("공지사항을 삭제하시겠습니까?")) {
+  function handleOpenDeleteModal(item: NoticeItem) {
+    if (!canManage) {
       return;
     }
 
+    setDeleteTarget({
+      _id: item._id,
+      title: item.title,
+    });
+    setError(null);
+    setMessage(null);
+  }
+
+  function handleCloseDeleteModal() {
+    if (deletingId) {
+      return;
+    }
+    setDeleteTarget(null);
+  }
+
+  async function handleDelete() {
+    if (!canManage || !deleteTarget) {
+      return;
+    }
+
+    setDeletingId(deleteTarget._id);
     setError(null);
     setMessage(null);
     try {
-      const response = await fetch(`/api/dashboard/notices/${noticeId}`, {
+      const response = await fetch(`/api/dashboard/notices/${deleteTarget._id}`, {
         method: "DELETE",
       });
       const result = (await response.json()) as { ok: boolean; error?: string };
       if (!result.ok) {
         throw new Error(result.error ?? "공지 삭제 실패");
       }
-      if (editingNoticeId === noticeId) {
+      if (editingNoticeId === deleteTarget._id) {
         resetForm();
       }
+      setDeleteTarget(null);
       setMessage("공지사항이 삭제되었습니다.");
       await loadNotices(page);
     } catch (err) {
       setError(err instanceof Error ? err.message : "공지 삭제 실패");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -292,7 +323,7 @@ export default function DashboardNoticesPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void handleDelete(row._id)}
+                    onClick={() => handleOpenDeleteModal(row)}
                     className="rounded border border-danger/40 px-2 py-1 text-xs text-danger hover:bg-danger/10"
                   >
                     삭제
@@ -309,6 +340,37 @@ export default function DashboardNoticesPage() {
       />
 
       <Pagination page={page} totalPages={totalPages} onPageChange={(nextPage) => void loadNotices(nextPage)} />
+
+      <Modal open={Boolean(deleteTarget)} title="공지사항 삭제" onClose={handleCloseDeleteModal}>
+        <div className="space-y-4">
+          <div className="rounded-md border border-border bg-background-soft p-3">
+            <p className="text-sm text-foreground">
+              <span className="font-medium">{deleteTarget?.title}</span>
+            </p>
+            <p className="mt-1 text-xs text-foreground-muted">
+              삭제 후에는 공지사항 목록에서 제외됩니다.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleCloseDeleteModal}
+              disabled={Boolean(deletingId)}
+              className="rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft disabled:opacity-60"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              disabled={Boolean(deletingId)}
+              className="rounded-md border border-danger/40 bg-danger/10 px-4 py-2 text-sm font-medium text-danger hover:bg-danger/15 disabled:opacity-60"
+            >
+              {deletingId === deleteTarget?._id ? "삭제 중..." : "삭제"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </section>
   );
 }

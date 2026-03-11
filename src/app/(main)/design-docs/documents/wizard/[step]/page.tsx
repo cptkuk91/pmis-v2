@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { FileUpload, FormInput } from "@/components/ui";
 import { hasMinRole, useCurrentUser } from "@/hooks/use-current-user";
@@ -118,6 +118,8 @@ export default function DocumentWizardStepPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [previewDocNo, setPreviewDocNo] = useState("");
+  const [isLoadingDocNo, setIsLoadingDocNo] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -134,6 +136,7 @@ export default function DocumentWizardStepPage() {
       setState((prev) => ({
         ...prev,
         ...parsed,
+        docNo: "",
         attachments: Array.isArray(parsed.attachments) ? parsed.attachments : [],
         approvalLines: Array.isArray(parsed.approvalLines) ? parsed.approvalLines : [],
       }));
@@ -196,6 +199,40 @@ export default function DocumentWizardStepPage() {
       }
     };
   }, []);
+
+  const loadPreviewDocNo = useCallback(async () => {
+    if (!canWrite) {
+      setPreviewDocNo("");
+      return;
+    }
+
+    setIsLoadingDocNo(true);
+    try {
+      const response = await fetch("/api/documents/next-doc-no", { cache: "no-store" });
+      const result = (await response.json()) as {
+        ok: boolean;
+        data?: { docNo?: string };
+        error?: string;
+      };
+      if (!result.ok) {
+        throw new Error(result.error ?? "문서번호 조회 실패");
+      }
+
+      setPreviewDocNo(result.data?.docNo ?? "");
+    } catch {
+      setPreviewDocNo("");
+    } finally {
+      setIsLoadingDocNo(false);
+    }
+  }, [canWrite]);
+
+  useEffect(() => {
+    if (isUserLoading) {
+      return;
+    }
+
+    void loadPreviewDocNo();
+  }, [isUserLoading, loadPreviewDocNo]);
 
   function updateState<K extends keyof WizardState>(key: K, value: WizardState[K]) {
     setState((prev) => ({ ...prev, [key]: value }));
@@ -307,6 +344,7 @@ export default function DocumentWizardStepPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...state,
+          docNo: "",
           status: "in_review",
           attachments: state.attachments,
           approvalLines: state.approvalLines,
@@ -321,6 +359,7 @@ export default function DocumentWizardStepPage() {
       window.localStorage.removeItem(STORAGE_KEY);
       setSaveState("idle");
       setLastSavedAt(null);
+      void loadPreviewDocNo();
     } catch (err) {
       setError(err instanceof Error ? err.message : "문서 발송 실패");
     } finally {
@@ -417,7 +456,17 @@ export default function DocumentWizardStepPage() {
             <div className="space-y-3 rounded-xl border border-border bg-background-soft p-4">
               {step === 1 ? (
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <FormInput label="문서번호(선택)" value={state.docNo} onChange={(event) => updateState("docNo", event.target.value)} />
+                  <label className="space-y-1">
+                    <span className="block text-sm font-medium text-foreground">문서번호</span>
+                    <input
+                      value={previewDocNo || (isLoadingDocNo ? "자동 채번 중..." : "자동 생성 예정")}
+                      readOnly
+                      className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground outline-none"
+                    />
+                    <p className="text-xs text-foreground-muted">
+                      문서번호는 발송 시점 기준으로 자동 채번됩니다.
+                    </p>
+                  </label>
                   <FormInput label="문서제목" value={state.title} onChange={(event) => updateState("title", event.target.value)} required />
                   <label className="space-y-1">
                     <span className="block text-sm font-medium text-foreground">대장구분</span>
