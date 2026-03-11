@@ -5,6 +5,7 @@ import EquipmentPlanActual from "@/models/EquipmentPlanActual";
 import { success } from "@/lib/api-response";
 import { handleApiError, NOT_FOUND, VALIDATION_ERROR } from "@/lib/api-error";
 import { logDelete, logUpdate } from "@/lib/audit-logger";
+import { ensureApprovedSupplierCompany } from "@/lib/approved-supplier-company";
 import { normalizeEquipmentPlanActualPayload } from "@/lib/equipment-plan-actual";
 
 type Params = {
@@ -22,6 +23,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
     const body = (await request.json()) as Record<string, unknown>;
     const payload = normalizeEquipmentPlanActualPayload(body);
+    await ensureApprovedSupplierCompany(payload.siteId, "equipment", payload.rentalCompany, "임대업체");
 
     const item = await EquipmentPlanActual.findOne({ _id: itemId, siteId: payload.siteId });
     if (!item) {

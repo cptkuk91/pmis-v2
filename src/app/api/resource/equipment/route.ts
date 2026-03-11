@@ -4,6 +4,7 @@ import EquipmentPlanActual from "@/models/EquipmentPlanActual";
 import { success, paginated } from "@/lib/api-response";
 import { handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { logCreate } from "@/lib/audit-logger";
+import { ensureApprovedSupplierCompany } from "@/lib/approved-supplier-company";
 import { normalizeEquipmentPlanActualPayload } from "@/lib/equipment-plan-actual";
 
 export async function GET(request: NextRequest) {
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
     await connectDB();
     const body = (await request.json()) as Record<string, unknown>;
     const payload = normalizeEquipmentPlanActualPayload(body);
+    await ensureApprovedSupplierCompany(payload.siteId, "equipment", payload.rentalCompany, "임대업체");
     const doc = await EquipmentPlanActual.create(payload);
     await logCreate(payload.siteId, "equipment", String(doc._id), { userId: null, userName: "system" });
     return success(doc);

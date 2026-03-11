@@ -10,6 +10,11 @@ import {
   type EquipmentUnit,
 } from "@/lib/equipment-unit";
 
+type ApprovedCompanyOption = {
+  id: string;
+  name: string;
+};
+
 type EquipmentRow = {
   _id: string;
   equipmentName: string;
@@ -130,14 +135,37 @@ const baseColumns: DataTableColumn<EquipmentRow>[] = [
 type EquipmentFormFieldsProps = {
   form: EquipmentFormState;
   onChange: (patch: Partial<EquipmentFormState>) => void;
+  rentalCompanyOptions: ApprovedCompanyOption[];
+  isLoadingRentalCompanyOptions?: boolean;
   disabled?: boolean;
 };
+
+function getRentalCompanyOptionsWithCurrentValue(
+  options: ApprovedCompanyOption[],
+  currentValue: string,
+): ApprovedCompanyOption[] {
+  if (!currentValue || options.some((option) => option.name === currentValue)) {
+    return options;
+  }
+
+  return [{ id: currentValue, name: currentValue }, ...options];
+}
 
 function EquipmentFormFields({
   form,
   onChange,
+  rentalCompanyOptions,
+  isLoadingRentalCompanyOptions = false,
   disabled = false,
 }: EquipmentFormFieldsProps) {
+  const rentalCompanyOptionsWithCurrentValue = getRentalCompanyOptionsWithCurrentValue(
+    rentalCompanyOptions,
+    form.rentalCompany,
+  );
+  const isLegacyRentalCompany =
+    Boolean(form.rentalCompany) &&
+    !rentalCompanyOptions.some((option) => option.name === form.rentalCompany);
+
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
       <div className="space-y-1">
@@ -206,12 +234,46 @@ function EquipmentFormFields({
       </div>
       <div className="space-y-1">
         <label className="block text-sm font-medium text-foreground">임대업체</label>
-        <input
-          className="h-9 w-full rounded-md border border-border px-3 text-sm"
-          value={form.rentalCompany}
-          disabled={disabled}
-          onChange={(event) => onChange({ rentalCompany: event.target.value })}
-        />
+        {disabled ? (
+          <input
+            className="h-9 w-full rounded-md border border-border px-3 text-sm"
+            value={form.rentalCompany}
+            disabled
+            readOnly
+          />
+        ) : (
+          <>
+            <select
+              className="h-9 w-full rounded-md border border-border px-3 text-sm"
+              value={form.rentalCompany}
+              onChange={(event) => onChange({ rentalCompany: event.target.value })}
+              disabled={isLoadingRentalCompanyOptions}
+            >
+              <option value="">
+                {isLoadingRentalCompanyOptions
+                  ? "업체 불러오는 중..."
+                  : rentalCompanyOptions.length > 0
+                    ? "임대업체 선택"
+                    : "승인된 임대업체 없음"}
+              </option>
+              {rentalCompanyOptionsWithCurrentValue.map((option) => (
+                <option key={option.id} value={option.name}>
+                  {option.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-foreground-muted">
+              {rentalCompanyOptions.length > 0
+                ? "업체 승인에서 승인 완료된 임대업체만 선택할 수 있습니다."
+                : "업체 승인에서 장비 업체를 먼저 승인해 주세요."}
+            </p>
+            {isLegacyRentalCompany ? (
+              <p className="text-xs text-danger">
+                현재 저장된 업체는 승인 목록에 없습니다. 승인된 임대업체로 다시 선택해 주세요.
+              </p>
+            ) : null}
+          </>
+        )}
       </div>
       <div className="space-y-1">
         <label className="block text-sm font-medium text-foreground">투입 예정일</label>
@@ -243,6 +305,8 @@ export default function EquipmentPlanActualPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<EquipmentFormState>(createDefaultForm);
+  const [rentalCompanyOptions, setRentalCompanyOptions] = useState<ApprovedCompanyOption[]>([]);
+  const [isLoadingRentalCompanyOptions, setIsLoadingRentalCompanyOptions] = useState(false);
   const [detailTarget, setDetailTarget] = useState<EquipmentRow | null>(null);
   const [detailForm, setDetailForm] = useState<EquipmentFormState>(createDefaultForm);
   const [detailMode, setDetailMode] = useState<DetailMode>("view");
@@ -288,6 +352,45 @@ export default function EquipmentPlanActualPage() {
   useEffect(() => {
     void fetchData(page);
   }, [page, fetchData]);
+
+  const fetchRentalCompanyOptions = useCallback(async () => {
+    const siteId = localStorage.getItem(SITE_ID_KEY) ?? "";
+    if (!siteId) {
+      setRentalCompanyOptions([]);
+      return;
+    }
+
+    setIsLoadingRentalCompanyOptions(true);
+    try {
+      const response = await fetch(
+        `/api/resource/supplier-approvals/company-options?siteId=${siteId}&approvalType=equipment`,
+        { cache: "no-store" },
+      );
+      const result = (await response.json()) as {
+        ok: boolean;
+        data?: ApprovedCompanyOption[];
+        error?: string;
+      };
+      if (!result.ok) {
+        throw new Error(result.error ?? "임대업체 목록 조회 실패");
+      }
+      setRentalCompanyOptions(result.data ?? []);
+    } catch {
+      setRentalCompanyOptions([]);
+    } finally {
+      setIsLoadingRentalCompanyOptions(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchRentalCompanyOptions();
+  }, [fetchRentalCompanyOptions]);
+
+  useEffect(() => {
+    if (showForm || detailTarget) {
+      void fetchRentalCompanyOptions();
+    }
+  }, [detailTarget, fetchRentalCompanyOptions, showForm]);
 
   async function handleCreate() {
     const siteId = localStorage.getItem(SITE_ID_KEY) ?? "";
@@ -477,6 +580,8 @@ export default function EquipmentPlanActualPage() {
         <div className="space-y-3 rounded-lg border border-border bg-background-card p-4">
           <EquipmentFormFields
             form={form}
+            rentalCompanyOptions={rentalCompanyOptions}
+            isLoadingRentalCompanyOptions={isLoadingRentalCompanyOptions}
             onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
           />
           <div className="flex justify-end">
@@ -518,6 +623,8 @@ export default function EquipmentPlanActualPage() {
         <div className="space-y-4">
           <EquipmentFormFields
             form={detailForm}
+            rentalCompanyOptions={rentalCompanyOptions}
+            isLoadingRentalCompanyOptions={isLoadingRentalCompanyOptions}
             disabled={detailMode === "view"}
             onChange={(patch) => setDetailForm((prev) => ({ ...prev, ...patch }))}
           />

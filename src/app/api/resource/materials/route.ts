@@ -4,6 +4,7 @@ import MaterialPlanActual from "@/models/MaterialPlanActual";
 import { success, paginated } from "@/lib/api-response";
 import { handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { logCreate } from "@/lib/audit-logger";
+import { ensureApprovedSupplierCompany } from "@/lib/approved-supplier-company";
 import { normalizeMaterialPlanActualPayload } from "@/lib/material-plan-actual";
 
 export async function GET(request: NextRequest) {
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
     await connectDB();
     const body = (await request.json()) as Record<string, unknown>;
     const payload = normalizeMaterialPlanActualPayload(body);
+    await ensureApprovedSupplierCompany(payload.siteId, "material", payload.supplier, "공급업체");
     const doc = await MaterialPlanActual.create({
       siteId: payload.siteId,
       materialName: payload.materialName,

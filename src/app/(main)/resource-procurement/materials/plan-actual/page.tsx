@@ -10,6 +10,11 @@ import {
   type MaterialUnit,
 } from "@/lib/material-unit";
 
+type ApprovedCompanyOption = {
+  id: string;
+  name: string;
+};
+
 type MaterialRow = {
   _id: string;
   materialName: string;
@@ -130,14 +135,37 @@ const baseColumns: DataTableColumn<MaterialRow>[] = [
 type MaterialFormFieldsProps = {
   form: MaterialFormState;
   onChange: (patch: Partial<MaterialFormState>) => void;
+  supplierOptions: ApprovedCompanyOption[];
+  isLoadingSupplierOptions?: boolean;
   disabled?: boolean;
 };
+
+function getSupplierOptionsWithCurrentValue(
+  options: ApprovedCompanyOption[],
+  currentValue: string,
+): ApprovedCompanyOption[] {
+  if (!currentValue || options.some((option) => option.name === currentValue)) {
+    return options;
+  }
+
+  return [{ id: currentValue, name: currentValue }, ...options];
+}
 
 function MaterialFormFields({
   form,
   onChange,
+  supplierOptions,
+  isLoadingSupplierOptions = false,
   disabled = false,
 }: MaterialFormFieldsProps) {
+  const supplierOptionsWithCurrentValue = getSupplierOptionsWithCurrentValue(
+    supplierOptions,
+    form.supplier,
+  );
+  const isLegacySupplier =
+    Boolean(form.supplier) &&
+    !supplierOptions.some((option) => option.name === form.supplier);
+
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
       <div className="space-y-1">
@@ -206,12 +234,46 @@ function MaterialFormFields({
       </div>
       <div className="space-y-1">
         <label className="block text-sm font-medium text-foreground">공급업체</label>
-        <input
-          className="h-9 w-full rounded-md border border-border px-3 text-sm"
-          value={form.supplier}
-          disabled={disabled}
-          onChange={(event) => onChange({ supplier: event.target.value })}
-        />
+        {disabled ? (
+          <input
+            className="h-9 w-full rounded-md border border-border px-3 text-sm"
+            value={form.supplier}
+            disabled
+            readOnly
+          />
+        ) : (
+          <>
+            <select
+              className="h-9 w-full rounded-md border border-border px-3 text-sm"
+              value={form.supplier}
+              onChange={(event) => onChange({ supplier: event.target.value })}
+              disabled={isLoadingSupplierOptions}
+            >
+              <option value="">
+                {isLoadingSupplierOptions
+                  ? "업체 불러오는 중..."
+                  : supplierOptions.length > 0
+                    ? "공급업체 선택"
+                    : "승인된 공급업체 없음"}
+              </option>
+              {supplierOptionsWithCurrentValue.map((option) => (
+                <option key={option.id} value={option.name}>
+                  {option.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-foreground-muted">
+              {supplierOptions.length > 0
+                ? "업체 승인에서 승인 완료된 공급업체만 선택할 수 있습니다."
+                : "업체 승인에서 자재 업체를 먼저 승인해 주세요."}
+            </p>
+            {isLegacySupplier ? (
+              <p className="text-xs text-danger">
+                현재 저장된 업체는 승인 목록에 없습니다. 승인된 공급업체로 다시 선택해 주세요.
+              </p>
+            ) : null}
+          </>
+        )}
       </div>
       <div className="space-y-1">
         <label className="block text-sm font-medium text-foreground">자재 반입 예정일</label>
@@ -243,6 +305,8 @@ export default function MaterialPlanActualPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<MaterialFormState>(createDefaultForm);
+  const [supplierOptions, setSupplierOptions] = useState<ApprovedCompanyOption[]>([]);
+  const [isLoadingSupplierOptions, setIsLoadingSupplierOptions] = useState(false);
   const [detailTarget, setDetailTarget] = useState<MaterialRow | null>(null);
   const [detailForm, setDetailForm] = useState<MaterialFormState>(createDefaultForm);
   const [detailMode, setDetailMode] = useState<DetailMode>("view");
@@ -291,6 +355,45 @@ export default function MaterialPlanActualPage() {
   useEffect(() => {
     void fetchData(page);
   }, [page, fetchData]);
+
+  const fetchSupplierOptions = useCallback(async () => {
+    const siteId = localStorage.getItem(SITE_ID_KEY) ?? "";
+    if (!siteId) {
+      setSupplierOptions([]);
+      return;
+    }
+
+    setIsLoadingSupplierOptions(true);
+    try {
+      const response = await fetch(
+        `/api/resource/supplier-approvals/company-options?siteId=${siteId}&approvalType=material`,
+        { cache: "no-store" },
+      );
+      const result = (await response.json()) as {
+        ok: boolean;
+        data?: ApprovedCompanyOption[];
+        error?: string;
+      };
+      if (!result.ok) {
+        throw new Error(result.error ?? "공급업체 목록 조회 실패");
+      }
+      setSupplierOptions(result.data ?? []);
+    } catch {
+      setSupplierOptions([]);
+    } finally {
+      setIsLoadingSupplierOptions(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchSupplierOptions();
+  }, [fetchSupplierOptions]);
+
+  useEffect(() => {
+    if (showForm || detailTarget) {
+      void fetchSupplierOptions();
+    }
+  }, [detailTarget, fetchSupplierOptions, showForm]);
 
   async function handleCreate() {
     const siteId = localStorage.getItem(SITE_ID_KEY) ?? "";
@@ -480,6 +583,8 @@ export default function MaterialPlanActualPage() {
         <div className="space-y-3 rounded-lg border border-border bg-background-card p-4">
           <MaterialFormFields
             form={form}
+            supplierOptions={supplierOptions}
+            isLoadingSupplierOptions={isLoadingSupplierOptions}
             onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
           />
           <div className="flex justify-end">
@@ -521,6 +626,8 @@ export default function MaterialPlanActualPage() {
         <div className="space-y-4">
           <MaterialFormFields
             form={detailForm}
+            supplierOptions={supplierOptions}
+            isLoadingSupplierOptions={isLoadingSupplierOptions}
             disabled={detailMode === "view"}
             onChange={(patch) => setDetailForm((prev) => ({ ...prev, ...patch }))}
           />

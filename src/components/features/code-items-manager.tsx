@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DataTable, FormInput } from "@/components/ui";
+import { DataTable, FormInput, Modal } from "@/components/ui";
 import { hasMinRole, useCurrentUser } from "@/hooks/use-current-user";
 
 type CodeGroup = {
@@ -25,6 +25,8 @@ type CodeResponse = {
   error?: string;
 };
 
+type DeleteTarget = Pick<CodeItem, "_id" | "itemCode" | "itemName">;
+
 type Props = {
   groupCode:
     | "partners"
@@ -35,6 +37,42 @@ type Props = {
   title: string;
   subtitle?: string;
 };
+
+function EditIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
+      <path
+        d="M4.167 13.333V15.833H6.667L14.042 8.458A1.178 1.178 0 0 0 14.042 6.792L13.208 5.958A1.178 1.178 0 0 0 11.542 5.958L4.167 13.333Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path d="M10.833 6.667L13.333 9.167" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function DeleteIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
+      <path
+        d="M5.833 6.667V14.167C5.833 14.627 6.206 15 6.667 15H13.333C13.794 15 14.167 14.627 14.167 14.167V6.667"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path d="M4.167 5H15.833" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path
+        d="M8.333 5V4.167C8.333 3.707 8.706 3.333 9.167 3.333H10.833C11.294 3.333 11.667 3.707 11.667 4.167V5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path d="M8.333 8.333V12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M11.667 8.333V12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 export function CodeItemsManager({ groupCode, title, subtitle }: Props) {
   const { user, isLoading: isUserLoading } = useCurrentUser();
@@ -57,6 +95,8 @@ export function CodeItemsManager({ groupCode, title, subtitle }: Props) {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -157,28 +197,48 @@ export function CodeItemsManager({ groupCode, title, subtitle }: Props) {
     }
   }
 
-  async function handleDelete(itemId: string) {
-    if (!canManage || !confirm("코드를 삭제하시겠습니까?")) {
+  function handleRequestDelete(item: DeleteTarget) {
+    if (!canManage) {
+      return;
+    }
+    setDeleteTarget(item);
+    setError(null);
+    setMessage(null);
+  }
+
+  function handleCloseDeleteModal() {
+    if (deletingId) {
+      return;
+    }
+    setDeleteTarget(null);
+  }
+
+  async function handleDelete() {
+    if (!canManage || !deleteTarget) {
       return;
     }
 
     setError(null);
     setMessage(null);
+    setDeletingId(deleteTarget._id);
     try {
-      const response = await fetch(`/api/system/codes/${groupCode}/${itemId}`, {
+      const response = await fetch(`/api/system/codes/${groupCode}/${deleteTarget._id}`, {
         method: "DELETE",
       });
       const result = (await response.json()) as { ok: boolean; error?: string };
       if (!result.ok) {
         throw new Error(result.error ?? "코드 삭제 실패");
       }
-      if (editingItemId === itemId) {
+      if (editingItemId === deleteTarget._id) {
         resetForm();
       }
+      setDeleteTarget(null);
       setMessage("코드가 삭제되었습니다.");
       await loadItems();
     } catch (err) {
       setError(err instanceof Error ? err.message : "코드 삭제 실패");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -268,22 +328,6 @@ export function CodeItemsManager({ groupCode, title, subtitle }: Props) {
               <option value="false">비활성</option>
             </select>
           </label>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="mt-6 rounded-md border border-border bg-background-soft px-4 py-2 text-sm font-medium text-foreground hover:bg-background-card disabled:opacity-60"
-          >
-            {editingItemId ? "수정" : "등록"}
-          </button>
-          {editingItemId ? (
-            <button
-              type="button"
-              onClick={resetForm}
-              className="mt-6 rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft"
-            >
-              취소
-            </button>
-          ) : null}
           <label className="space-y-1 md:col-span-5">
             <span className="block text-sm font-medium text-foreground">설명</span>
             <textarea
@@ -294,6 +338,24 @@ export function CodeItemsManager({ groupCode, title, subtitle }: Props) {
               placeholder="필요하면 규격 설명이나 사용 메모를 입력"
             />
           </label>
+          <div className="flex justify-end gap-2 md:col-span-5">
+            {editingItemId ? (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft"
+              >
+                취소
+              </button>
+            ) : null}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="rounded-md border border-border bg-background-soft px-4 py-2 text-sm font-medium text-foreground hover:bg-background-card disabled:opacity-60"
+            >
+              {editingItemId ? "수정" : "등록"}
+            </button>
+          </div>
         </form>
       ) : isUserLoading ? null : (
         <p className="text-sm text-foreground-muted">코드 관리는 `site_admin` 이상 권한이 필요합니다.</p>
@@ -316,23 +378,33 @@ export function CodeItemsManager({ groupCode, title, subtitle }: Props) {
           {
             key: "_id",
             header: "관리",
-            className: "w-36",
+            className: "w-24",
             render: (_, row) =>
               canManage ? (
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => handleEdit(row)}
-                    className="rounded border border-border px-2 py-1 text-xs text-foreground hover:bg-background-soft"
+                    aria-label="코드 수정"
+                    title="수정"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded border border-border text-foreground hover:bg-background-soft"
                   >
-                    수정
+                    <EditIcon />
                   </button>
                   <button
                     type="button"
-                    onClick={() => void handleDelete(row._id)}
-                    className="rounded border border-danger/40 px-2 py-1 text-xs text-danger hover:bg-danger/10"
+                    onClick={() =>
+                      handleRequestDelete({
+                        _id: row._id,
+                        itemCode: row.itemCode,
+                        itemName: row.itemName,
+                      })
+                    }
+                    aria-label="코드 삭제"
+                    title="삭제"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded border border-danger/40 text-danger hover:bg-danger/10"
                   >
-                    삭제
+                    <DeleteIcon />
                   </button>
                 </div>
               ) : (
@@ -344,6 +416,34 @@ export function CodeItemsManager({ groupCode, title, subtitle }: Props) {
         rowKey={(row) => row._id}
         emptyMessage={isLoading ? "불러오는 중..." : "등록된 코드가 없습니다."}
       />
+
+      <Modal open={Boolean(deleteTarget)} title="코드 삭제" onClose={handleCloseDeleteModal}>
+        <div className="space-y-4">
+          <p className="text-sm text-foreground">
+            <span className="font-medium">{deleteTarget?.itemName}</span>
+            {deleteTarget?.itemCode ? ` (${deleteTarget.itemCode})` : ""} 코드를 삭제하시겠습니까?
+          </p>
+          <p className="text-sm text-foreground-muted">삭제 후에는 복구할 수 없습니다.</p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleCloseDeleteModal}
+              disabled={Boolean(deletingId)}
+              className="rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft disabled:opacity-60"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              disabled={Boolean(deletingId)}
+              className="rounded-md border border-danger/40 bg-danger/10 px-4 py-2 text-sm font-medium text-danger hover:bg-danger/15 disabled:opacity-60"
+            >
+              삭제
+            </button>
+          </div>
+        </div>
+      </Modal>
     </section>
   );
 }

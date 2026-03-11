@@ -5,6 +5,7 @@ import MaterialPlanActual from "@/models/MaterialPlanActual";
 import { success } from "@/lib/api-response";
 import { handleApiError, NOT_FOUND, VALIDATION_ERROR } from "@/lib/api-error";
 import { logDelete, logUpdate } from "@/lib/audit-logger";
+import { ensureApprovedSupplierCompany } from "@/lib/approved-supplier-company";
 import { normalizeMaterialPlanActualPayload } from "@/lib/material-plan-actual";
 
 type Params = {
@@ -22,6 +23,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
     const body = (await request.json()) as Record<string, unknown>;
     const payload = normalizeMaterialPlanActualPayload(body);
+    await ensureApprovedSupplierCompany(payload.siteId, "material", payload.supplier, "공급업체");
 
     const item = await MaterialPlanActual.findOne({ _id: itemId, siteId: payload.siteId });
     if (!item) {
