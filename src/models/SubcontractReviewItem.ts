@@ -24,7 +24,7 @@ const SubcontractReviewItemSchema = new Schema<ISubcontractReviewItem>(
     result: {
       type: String,
       enum: ["pass", "fail", "na"],
-      default: "na",
+      default: "pass",
     },
     remarks: { type: String },
   },

@@ -8,6 +8,11 @@ import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import { assertNoUnsafeHtml, assertSafeMutationRequest } from "@/lib/request-security";
 import { logCreate } from "@/lib/audit-logger";
+import { ensureAllowedWorkType } from "@/lib/work-type-code";
+
+function buildSubcontractReviewTitle(contractorName: string, workType: string) {
+  return workType ? `${contractorName} / ${workType}` : contractorName;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -48,22 +53,24 @@ export async function POST(request: NextRequest) {
     }
 
     const { items, ...reviewData } = body;
-    const title = String(reviewData.title ?? "").trim();
     const contractorName = String(reviewData.contractorName ?? "").trim();
-    if (!title) {
-      throw VALIDATION_ERROR("검토요청 제목은 필수입니다.");
-    }
+    const workType = String(reviewData.workType ?? "").trim();
     if (!contractorName) {
       throw VALIDATION_ERROR("업체명은 필수입니다.");
     }
-    assertNoUnsafeHtml(title, "검토요청 제목");
     assertNoUnsafeHtml(contractorName, "업체명");
+    if (workType) {
+      assertNoUnsafeHtml(workType, "공종");
+    }
+    await ensureAllowedWorkType(siteId, workType);
+    const title = buildSubcontractReviewTitle(contractorName, workType);
 
     const review = await SubcontractReview.create({
       ...reviewData,
       siteId,
       title,
       contractorName,
+      workType: workType || undefined,
       requestDate: reviewData.requestDate ? new Date(reviewData.requestDate) : new Date(),
       requestedBy: requester.userId ?? undefined,
       createdBy: requester.userId ?? undefined,
@@ -95,7 +102,7 @@ export async function POST(request: NextRequest) {
           reviewId: review._id,
           itemNo: idx + 1,
           checkItem,
-          result: item.result || "na",
+          result: item.result || "pass",
           remarks: remarks || undefined,
           createdBy: requester.userId ?? undefined,
           updatedBy: requester.userId ?? undefined,

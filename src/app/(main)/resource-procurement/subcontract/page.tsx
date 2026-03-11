@@ -1,12 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { Pagination } from "@/components/ui/pagination";
 
 type ReviewRow = {
   _id: string;
-  title: string;
   contractorName: string;
   workType: string;
   contractAmount: number;
@@ -15,16 +15,38 @@ type ReviewRow = {
 };
 
 type ReviewItem = { checkItem: string; result: string; remarks: string };
+type WorkTypeOption = { id: string; code: string; name: string; description: string };
 
 const SITE_ID_KEY = "pmis:siteId";
+
+function formatNumericDisplay(value: number) {
+  return value.toLocaleString("ko-KR");
+}
+
+function parseNumericInput(value: string) {
+  const normalized = value.replace(/,/g, "").replace(/[^\d.]/g, "");
+  if (!normalized) {
+    return 0;
+  }
+
+  const [integerPart, ...decimalParts] = normalized.split(".");
+  const decimalPart = decimalParts.join("");
+  const numericValue = decimalPart ? `${integerPart}.${decimalPart}` : integerPart;
+  const parsed = Number(numericValue);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 const statusLabel: Record<string, string> = { pending: "대기", approved: "승인", rejected: "반려" };
 
 const columns: DataTableColumn<ReviewRow>[] = [
-  { key: "title", header: "제목" },
   { key: "contractorName", header: "업체명" },
   { key: "workType", header: "공종" },
-  { key: "contractAmount", header: "계약금액", className: "w-32 text-right", render: (_v, row) => row.contractAmount?.toLocaleString() },
+  {
+    key: "contractAmount",
+    header: "계약금액",
+    className: "w-32 text-right",
+    render: (_value, row) => formatNumericDisplay(row.contractAmount ?? 0),
+  },
   { key: "status", header: "상태", className: "w-20", render: (_v, row) => statusLabel[row.status] ?? row.status },
   { key: "requestDate", header: "요청일", className: "w-28", render: (_v, row) => row.requestDate?.slice(0, 10) },
 ];
@@ -38,16 +60,19 @@ const statusTabs = [
 
 export default function SubcontractPage() {
   const [data, setData] = useState<ReviewRow[]>([]);
+  const [workTypeOptions, setWorkTypeOptions] = useState<WorkTypeOption[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoadingWorkTypeOptions, setIsLoadingWorkTypeOptions] = useState(false);
   const [form, setForm] = useState({
-    title: "", contractorName: "", workType: "", contractAmount: 0, remarks: "",
+    contractorName: "", workType: "", contractAmount: 0, remarks: "",
   });
   const [items, setItems] = useState<ReviewItem[]>([
-    { checkItem: "", result: "na", remarks: "" },
+    { checkItem: "", result: "pass", remarks: "" },
   ]);
 
   const fetchData = useCallback((p: number, status: string) => {
@@ -61,7 +86,41 @@ export default function SubcontractPage() {
       });
   }, []);
 
+  const fetchWorkTypeOptions = useCallback(async () => {
+    const siteId = localStorage.getItem(SITE_ID_KEY) ?? "";
+    if (!siteId) {
+      setWorkTypeOptions([]);
+      return;
+    }
+
+    setIsLoadingWorkTypeOptions(true);
+    try {
+      const response = await fetch(`/api/subcontract-reviews/work-type-options?siteId=${siteId}`, {
+        cache: "no-store",
+      });
+      const result = (await response.json()) as {
+        ok: boolean;
+        data?: WorkTypeOption[];
+        error?: string;
+      };
+      if (!result.ok) {
+        throw new Error(result.error ?? "공종 옵션을 불러오지 못했습니다.");
+      }
+
+      setWorkTypeOptions(result.data ?? []);
+    } catch {
+      setWorkTypeOptions([]);
+    } finally {
+      setIsLoadingWorkTypeOptions(false);
+    }
+  }, []);
+
   useEffect(() => { fetchData(page, statusFilter); }, [page, statusFilter, fetchData]);
+  useEffect(() => {
+    if (showForm) {
+      void fetchWorkTypeOptions();
+    }
+  }, [fetchWorkTypeOptions, showForm]);
 
   function handleTabChange(key: string) {
     setStatusFilter(key);
@@ -69,7 +128,7 @@ export default function SubcontractPage() {
   }
 
   function addItem() {
-    setItems([...items, { checkItem: "", result: "na", remarks: "" }]);
+    setItems([...items, { checkItem: "", result: "pass", remarks: "" }]);
   }
 
   function updateItem(idx: number, field: keyof ReviewItem, value: string) {
@@ -85,6 +144,7 @@ export default function SubcontractPage() {
 
   async function handleSubmit() {
     const siteId = localStorage.getItem(SITE_ID_KEY) ?? "";
+    setError(null);
     const res = await fetch("/api/subcontract-reviews", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -94,12 +154,14 @@ export default function SubcontractPage() {
     if (json.ok) {
       setSubmitted(true);
       setShowForm(false);
-      setForm({ title: "", contractorName: "", workType: "", contractAmount: 0, remarks: "" });
-      setItems([{ checkItem: "", result: "na", remarks: "" }]);
+      setForm({ contractorName: "", workType: "", contractAmount: 0, remarks: "" });
+      setItems([{ checkItem: "", result: "pass", remarks: "" }]);
       setPage(1);
       fetchData(1, statusFilter);
       setTimeout(() => setSubmitted(false), 3000);
+      return;
     }
+    setError(json.error ?? "검토요청을 등록하지 못했습니다.");
   }
 
   return (
@@ -114,14 +176,45 @@ export default function SubcontractPage() {
       {submitted && (
         <div className="rounded-md bg-green-50 p-3 text-sm text-green-800">검토요청이 등록되었습니다.</div>
       )}
+      {error ? <p className="text-sm text-danger">{error}</p> : null}
 
       {showForm && (
         <div className="rounded-lg border border-border bg-background-card p-4 space-y-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div className="space-y-1"><label className="block text-sm font-medium text-foreground">제목 *</label><input className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
             <div className="space-y-1"><label className="block text-sm font-medium text-foreground">업체명 *</label><input className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.contractorName} onChange={(e) => setForm({ ...form, contractorName: e.target.value })} /></div>
-            <div className="space-y-1"><label className="block text-sm font-medium text-foreground">공종</label><input className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.workType} onChange={(e) => setForm({ ...form, workType: e.target.value })} /></div>
-            <div className="space-y-1"><label className="block text-sm font-medium text-foreground">계약금액</label><input type="number" className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.contractAmount} onChange={(e) => setForm({ ...form, contractAmount: Number(e.target.value) })} /></div>
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-foreground">공종</label>
+              <select
+                className="h-9 w-full rounded-md border border-border px-3 text-sm"
+                value={form.workType}
+                onChange={(e) => setForm({ ...form, workType: e.target.value })}
+                disabled={isLoadingWorkTypeOptions}
+              >
+                <option value="">{isLoadingWorkTypeOptions ? "공종 불러오는 중..." : "공종 선택"}</option>
+                {workTypeOptions.map((option) => (
+                  <option key={option.id} value={option.name}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
+              {workTypeOptions.length === 0 && !isLoadingWorkTypeOptions ? (
+                <p className="text-xs text-foreground-muted">
+                  <Link href="/system-admin/codes/work-types" className="underline underline-offset-2">
+                    공종 코드관리
+                  </Link>
+                  에서 먼저 등록할 수 있습니다.
+                </p>
+              ) : null}
+            </div>
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-foreground">계약금액</label>
+              <input
+                inputMode="numeric"
+                className="h-9 w-full rounded-md border border-border px-3 text-sm"
+                value={formatNumericDisplay(form.contractAmount)}
+                onChange={(e) => setForm({ ...form, contractAmount: parseNumericInput(e.target.value) })}
+              />
+            </div>
             <div className="space-y-1 md:col-span-2"><label className="block text-sm font-medium text-foreground">비고</label><input className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} /></div>
           </div>
           <div className="space-y-2">
