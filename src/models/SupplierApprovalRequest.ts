@@ -1,8 +1,14 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 import { baseFieldsPlugin } from "@/lib/mongoose-plugins";
+import {
+  DEFAULT_SUPPLIER_APPROVAL_TYPE,
+  SUPPLIER_APPROVAL_TYPE_OPTIONS,
+  type SupplierApprovalType,
+} from "@/lib/supplier-approval";
 
 export interface ISupplierApprovalRequest extends Document {
   siteId: mongoose.Types.ObjectId;
+  approvalType: SupplierApprovalType;
   supplierName: string;
   materialName: string;
   specification?: string;
@@ -25,6 +31,11 @@ export interface ISupplierApprovalRequest extends Document {
 const SupplierApprovalRequestSchema = new Schema<ISupplierApprovalRequest>(
   {
     siteId: { type: Schema.Types.ObjectId, ref: "Site", required: true },
+    approvalType: {
+      type: String,
+      enum: SUPPLIER_APPROVAL_TYPE_OPTIONS,
+      default: DEFAULT_SUPPLIER_APPROVAL_TYPE,
+    },
     supplierName: { type: String, required: true, trim: true },
     materialName: { type: String, required: true, trim: true },
     specification: { type: String, trim: true },

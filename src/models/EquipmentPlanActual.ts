@@ -1,11 +1,16 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 import { baseFieldsPlugin } from "@/lib/mongoose-plugins";
+import {
+  DEFAULT_EQUIPMENT_UNIT,
+  EQUIPMENT_UNIT_OPTIONS,
+  type EquipmentUnit,
+} from "@/lib/equipment-unit";
 
 export interface IEquipmentPlanActual extends Document {
   siteId: mongoose.Types.ObjectId;
   equipmentName: string;
   specification?: string;
-  unit: string;
+  unit: EquipmentUnit;
   planQty: number;
   actualQty: number;
   planDate?: Date;
@@ -25,7 +30,7 @@ const EquipmentPlanActualSchema = new Schema<IEquipmentPlanActual>(
     siteId: { type: Schema.Types.ObjectId, ref: "Site", required: true },
     equipmentName: { type: String, required: true, trim: true },
     specification: { type: String, trim: true },
-    unit: { type: String, required: true, trim: true },
+    unit: { type: String, enum: EQUIPMENT_UNIT_OPTIONS, default: DEFAULT_EQUIPMENT_UNIT },
     planQty: { type: Number, default: 0 },
     actualQty: { type: Number, default: 0 },
     planDate: { type: Date },

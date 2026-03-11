@@ -26,7 +26,12 @@ type CodeResponse = {
 };
 
 type Props = {
-  groupCode: "partners" | "materials" | "equipment";
+  groupCode:
+    | "partners"
+    | "materials"
+    | "equipment"
+    | "material-specifications"
+    | "equipment-specifications";
   title: string;
   subtitle?: string;
 };
@@ -39,9 +44,9 @@ export function CodeItemsManager({ groupCode, title, subtitle }: Props) {
   const [items, setItems] = useState<CodeItem[]>([]);
   const [keyword, setKeyword] = useState("");
   const [activeFilter, setActiveFilter] = useState<"all" | "true" | "false">("true");
-  const [sort, setSort] = useState<
-    "sort_asc" | "sort_desc" | "name_asc" | "name_desc" | "code_asc" | "code_desc"
-  >("sort_asc");
+  const [sort, setSort] = useState<"name_asc" | "name_desc" | "code_asc" | "code_desc">(
+    "name_asc",
+  );
 
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [itemCode, setItemCode] = useState("");
@@ -54,6 +59,10 @@ export function CodeItemsManager({ groupCode, title, subtitle }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  const nextSortOrder = useMemo(() => {
+    return items.reduce((maxOrder, item) => Math.max(maxOrder, item.sortOrder), 0) + 1;
+  }, [items]);
 
   const loadItems = useCallback(async () => {
     setIsLoading(true);
@@ -84,12 +93,18 @@ export function CodeItemsManager({ groupCode, title, subtitle }: Props) {
     void loadItems();
   }, [loadItems]);
 
+  useEffect(() => {
+    if (!editingItemId) {
+      setSortOrder(String(nextSortOrder));
+    }
+  }, [editingItemId, nextSortOrder]);
+
   function resetForm() {
     setEditingItemId(null);
     setItemCode("");
     setItemName("");
     setDescription("");
-    setSortOrder("0");
+    setSortOrder(String(nextSortOrder));
     setIsActive(true);
   }
 
@@ -202,8 +217,6 @@ export function CodeItemsManager({ groupCode, title, subtitle }: Props) {
             onChange={(event) =>
               setSort(
                 event.target.value as
-                  | "sort_asc"
-                  | "sort_desc"
                   | "name_asc"
                   | "name_desc"
                   | "code_asc"
@@ -212,8 +225,6 @@ export function CodeItemsManager({ groupCode, title, subtitle }: Props) {
             }
             className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
           >
-            <option value="sort_asc">순서 오름차순</option>
-            <option value="sort_desc">순서 내림차순</option>
             <option value="name_asc">명칭 오름차순</option>
             <option value="name_desc">명칭 내림차순</option>
             <option value="code_asc">코드 오름차순</option>
@@ -230,7 +241,10 @@ export function CodeItemsManager({ groupCode, title, subtitle }: Props) {
       </div>
 
       {canManage ? (
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 md:grid-cols-[180px_220px_1fr_120px_120px_auto_auto]">
+        <form
+          onSubmit={handleSubmit}
+          className="grid grid-cols-1 gap-3 md:grid-cols-[180px_220px_140px_auto_auto]"
+        >
           <FormInput
             label="코드"
             value={itemCode}
@@ -242,17 +256,6 @@ export function CodeItemsManager({ groupCode, title, subtitle }: Props) {
             value={itemName}
             onChange={(event) => setItemName(event.target.value)}
             required
-          />
-          <FormInput
-            label="설명"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-          />
-          <FormInput
-            label="순서"
-            type="number"
-            value={sortOrder}
-            onChange={(event) => setSortOrder(event.target.value)}
           />
           <label className="space-y-1">
             <span className="block text-sm font-medium text-foreground">활성</span>
@@ -281,6 +284,16 @@ export function CodeItemsManager({ groupCode, title, subtitle }: Props) {
               취소
             </button>
           ) : null}
+          <label className="space-y-1 md:col-span-5">
+            <span className="block text-sm font-medium text-foreground">설명</span>
+            <textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              rows={3}
+              className="w-full rounded-md border border-border bg-background-card px-3 py-2 text-sm text-foreground outline-none transition focus:border-border-strong focus:ring-2 focus:ring-primary/15"
+              placeholder="필요하면 규격 설명이나 사용 메모를 입력"
+            />
+          </label>
         </form>
       ) : isUserLoading ? null : (
         <p className="text-sm text-foreground-muted">코드 관리는 `site_admin` 이상 권한이 필요합니다.</p>
@@ -294,7 +307,6 @@ export function CodeItemsManager({ groupCode, title, subtitle }: Props) {
           { key: "itemCode", header: "코드", className: "w-28" },
           { key: "itemName", header: "명칭", className: "w-48" },
           { key: "description", header: "설명" },
-          { key: "sortOrder", header: "순서", className: "w-24" },
           {
             key: "isActive",
             header: "활성",

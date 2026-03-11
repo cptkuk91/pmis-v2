@@ -22,6 +22,12 @@ function normalizeGroupCode(groupCode: string): string {
   if (groupCode === "equipment") {
     return "EQUIPMENT";
   }
+  if (groupCode === "material-specifications") {
+    return "MATERIAL_SPECIFICATIONS";
+  }
+  if (groupCode === "equipment-specifications") {
+    return "EQUIPMENT_SPECIFICATIONS";
+  }
   return groupCode.toUpperCase();
 }
 

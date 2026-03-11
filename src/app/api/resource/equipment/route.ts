@@ -4,6 +4,7 @@ import EquipmentPlanActual from "@/models/EquipmentPlanActual";
 import { success, paginated } from "@/lib/api-response";
 import { handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { logCreate } from "@/lib/audit-logger";
+import { normalizeEquipmentPlanActualPayload } from "@/lib/equipment-plan-actual";
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,9 +30,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
-    const body = await request.json();
-    const doc = await EquipmentPlanActual.create(body);
-    await logCreate(String(body.siteId ?? ""), "equipment", String(doc._id), { userId: null, userName: "system" });
+    const body = (await request.json()) as Record<string, unknown>;
+    const payload = normalizeEquipmentPlanActualPayload(body);
+    const doc = await EquipmentPlanActual.create(payload);
+    await logCreate(payload.siteId, "equipment", String(doc._id), { userId: null, userName: "system" });
     return success(doc);
   } catch (err) {
     return handleApiError(err);
