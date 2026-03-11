@@ -12,6 +12,8 @@ type DataTableProps<T> = {
   data: T[];
   rowKey: (row: T, index: number) => string;
   emptyMessage?: string;
+  onRowClick?: (row: T, index: number) => void;
+  getRowAriaLabel?: (row: T, index: number) => string;
 };
 
 export function DataTable<T extends Record<string, unknown>>({
@@ -19,6 +21,8 @@ export function DataTable<T extends Record<string, unknown>>({
   data,
   rowKey,
   emptyMessage = "데이터가 없습니다.",
+  onRowClick,
+  getRowAriaLabel,
 }: DataTableProps<T>) {
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-background-card shadow-[var(--shadow-soft)]">
@@ -49,7 +53,24 @@ export function DataTable<T extends Record<string, unknown>>({
             data.map((row, index) => (
               <tr
                 key={rowKey(row, index)}
-                className="border-b border-border transition-colors hover:bg-background-soft last:border-b-0"
+                className={`border-b border-border transition-colors last:border-b-0 ${
+                  onRowClick
+                    ? "cursor-pointer hover:bg-background-soft focus-within:bg-background-soft focus-visible:bg-background-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-border"
+                    : "hover:bg-background-soft"
+                }`}
+                onClick={onRowClick ? () => onRowClick(row, index) : undefined}
+                onKeyDown={
+                  onRowClick
+                    ? (event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          onRowClick(row, index);
+                        }
+                      }
+                    : undefined
+                }
+                tabIndex={onRowClick ? 0 : undefined}
+                aria-label={onRowClick ? getRowAriaLabel?.(row, index) : undefined}
               >
                 {columns.map((column) => {
                   const value = row[column.key];

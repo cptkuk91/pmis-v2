@@ -4,6 +4,7 @@ import MaterialPlanActual from "@/models/MaterialPlanActual";
 import { success, paginated } from "@/lib/api-response";
 import { handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { logCreate } from "@/lib/audit-logger";
+import { normalizeMaterialPlanActualPayload } from "@/lib/material-plan-actual";
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,9 +30,22 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
-    const body = await request.json();
-    const doc = await MaterialPlanActual.create(body);
-    await logCreate(String(body.siteId ?? ""), "material", String(doc._id), { userId: null, userName: "system" });
+    const body = (await request.json()) as Record<string, unknown>;
+    const payload = normalizeMaterialPlanActualPayload(body);
+    const doc = await MaterialPlanActual.create({
+      siteId: payload.siteId,
+      materialName: payload.materialName,
+      specification: payload.specification || undefined,
+      unit: payload.unit,
+      planQty: payload.planQty,
+      actualQty: payload.actualQty,
+      planDate: payload.planDate,
+      actualDate: payload.actualDate,
+      supplier: payload.supplier || undefined,
+      unitPrice: payload.unitPrice,
+      remarks: payload.remarks || undefined,
+    });
+    await logCreate(payload.siteId, "material", String(doc._id), { userId: null, userName: "system" });
     return success(doc);
   } catch (err) {
     return handleApiError(err);

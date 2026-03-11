@@ -1,11 +1,16 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 import { baseFieldsPlugin } from "@/lib/mongoose-plugins";
+import {
+  DEFAULT_MATERIAL_UNIT,
+  MATERIAL_UNIT_OPTIONS,
+  type MaterialUnit,
+} from "@/lib/material-unit";
 
 export interface IMaterialPlanActual extends Document {
   siteId: mongoose.Types.ObjectId;
   materialName: string;
   specification?: string;
-  unit: string;
+  unit: MaterialUnit;
   planQty: number;
   actualQty: number;
   planDate?: Date;
@@ -25,7 +30,7 @@ const MaterialPlanActualSchema = new Schema<IMaterialPlanActual>(
     siteId: { type: Schema.Types.ObjectId, ref: "Site", required: true },
     materialName: { type: String, required: true, trim: true },
     specification: { type: String, trim: true },
-    unit: { type: String, required: true, trim: true },
+    unit: { type: String, enum: MATERIAL_UNIT_OPTIONS, default: DEFAULT_MATERIAL_UNIT },
     planQty: { type: Number, default: 0 },
     actualQty: { type: Number, default: 0 },
     planDate: { type: Date },
