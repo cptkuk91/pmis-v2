@@ -13,8 +13,23 @@ type WizardAttachment = {
 
 type WizardApprovalLine = {
   order: number;
+  approverId?: string;
   approverName: string;
   approverRoleTitle: string;
+};
+
+type DocumentCategoryOption = {
+  _id: string;
+  categoryCode: string;
+  categoryName: string;
+};
+
+type SiteMemberOption = {
+  _id: string;
+  name: string;
+  email: string;
+  role: "super_admin" | "site_admin" | "manager" | "viewer";
+  membershipRole: "site_admin" | "manager" | "viewer";
 };
 
 type WizardState = {
@@ -49,6 +64,11 @@ type ToastState = {
 const STORAGE_KEY = "pmis:document-wizard";
 const STEP_MIN = 1;
 const STEP_MAX = 4;
+const membershipRoleLabel: Record<SiteMemberOption["membershipRole"], string> = {
+  site_admin: "현장관리자",
+  manager: "관리자",
+  viewer: "열람",
+};
 
 const STEP_META = [
   {
@@ -112,7 +132,7 @@ export default function DocumentWizardStepPage() {
   const canWrite = useMemo(() => hasMinRole(user.role, "manager"), [user.role]);
 
   const [state, setState] = useState<WizardState>(initialState);
-  const [approverName, setApproverName] = useState("");
+  const [selectedApproverId, setSelectedApproverId] = useState("");
   const [approverRoleTitle, setApproverRoleTitle] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -120,6 +140,10 @@ export default function DocumentWizardStepPage() {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [previewDocNo, setPreviewDocNo] = useState("");
   const [isLoadingDocNo, setIsLoadingDocNo] = useState(false);
+  const [categoryOptions, setCategoryOptions] = useState<DocumentCategoryOption[]>([]);
+  const [isLoadingCategoryOptions, setIsLoadingCategoryOptions] = useState(false);
+  const [approverOptions, setApproverOptions] = useState<SiteMemberOption[]>([]);
+  const [isLoadingApproverOptions, setIsLoadingApproverOptions] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -226,13 +250,78 @@ export default function DocumentWizardStepPage() {
     }
   }, [canWrite]);
 
+  const loadCategoryOptions = useCallback(async () => {
+    if (!canWrite) {
+      setCategoryOptions([]);
+      return;
+    }
+
+    setIsLoadingCategoryOptions(true);
+    try {
+      const response = await fetch("/api/documents/categories?active=true", {
+        cache: "no-store",
+      });
+      const result = (await response.json()) as {
+        ok: boolean;
+        data?: DocumentCategoryOption[];
+        error?: string;
+      };
+      if (!result.ok) {
+        throw new Error(result.error ?? "분류 코드 조회 실패");
+      }
+
+      setCategoryOptions(Array.isArray(result.data) ? result.data : []);
+    } catch {
+      setCategoryOptions([]);
+    } finally {
+      setIsLoadingCategoryOptions(false);
+    }
+  }, [canWrite]);
+
+  const loadApproverOptions = useCallback(async () => {
+    if (!canWrite) {
+      setApproverOptions([]);
+      return;
+    }
+
+    setIsLoadingApproverOptions(true);
+    try {
+      const response = await fetch("/api/sites/members", {
+        cache: "no-store",
+      });
+      const result = (await response.json()) as {
+        ok: boolean;
+        data?: SiteMemberOption[];
+        error?: string;
+      };
+      if (!result.ok) {
+        throw new Error(result.error ?? "결재자 목록 조회 실패");
+      }
+
+      setApproverOptions(Array.isArray(result.data) ? result.data : []);
+    } catch {
+      setApproverOptions([]);
+    } finally {
+      setIsLoadingApproverOptions(false);
+    }
+  }, [canWrite]);
+
   useEffect(() => {
     if (isUserLoading) {
       return;
     }
 
-    void loadPreviewDocNo();
-  }, [isUserLoading, loadPreviewDocNo]);
+    void Promise.all([loadPreviewDocNo(), loadCategoryOptions(), loadApproverOptions()]);
+  }, [isUserLoading, loadApproverOptions, loadCategoryOptions, loadPreviewDocNo]);
+
+  const hasSelectedCategoryOption = useMemo(
+    () => categoryOptions.some((item) => item.categoryCode === state.categoryCode),
+    [categoryOptions, state.categoryCode],
+  );
+  const selectedApprover = useMemo(
+    () => approverOptions.find((item) => item._id === selectedApproverId) ?? null,
+    [approverOptions, selectedApproverId],
+  );
 
   function updateState<K extends keyof WizardState>(key: K, value: WizardState[K]) {
     setState((prev) => ({ ...prev, [key]: value }));
@@ -290,8 +379,7 @@ export default function DocumentWizardStepPage() {
   }
 
   function handleAddApprovalLine() {
-    const name = approverName.trim();
-    if (!name) {
+    if (!selectedApprover) {
       return;
     }
 
@@ -301,12 +389,13 @@ export default function DocumentWizardStepPage() {
         ...prev.approvalLines,
         {
           order: prev.approvalLines.length + 1,
-          approverName: name,
+          approverId: selectedApprover._id,
+          approverName: selectedApprover.name,
           approverRoleTitle: approverRoleTitle.trim(),
         },
       ],
     }));
-    setApproverName("");
+    setSelectedApproverId("");
     setApproverRoleTitle("");
   }
 
@@ -356,6 +445,8 @@ export default function DocumentWizardStepPage() {
       }
       setMessage(`문서가 발송되었습니다. (${result.data?.docNo ?? "번호 자동생성"})`);
       setState(initialState);
+      setSelectedApproverId("");
+      setApproverRoleTitle("");
       window.localStorage.removeItem(STORAGE_KEY);
       setSaveState("idle");
       setLastSavedAt(null);
@@ -493,7 +584,40 @@ export default function DocumentWizardStepPage() {
                       <option value="inbound">수신</option>
                     </select>
                   </label>
-                  <FormInput label="분류코드" value={state.categoryCode} onChange={(event) => updateState("categoryCode", event.target.value.toUpperCase())} />
+                  <label className="space-y-1">
+                    <span className="block text-sm font-medium text-foreground">분류 코드</span>
+                    <select
+                      value={state.categoryCode}
+                      onChange={(event) => updateState("categoryCode", event.target.value)}
+                      disabled={isLoadingCategoryOptions}
+                      className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
+                    >
+                      <option value="">
+                        {isLoadingCategoryOptions ? "분류 코드 불러오는 중..." : "분류 코드 선택"}
+                      </option>
+                      {state.categoryCode && !hasSelectedCategoryOption ? (
+                        <option value={state.categoryCode}>
+                          {state.categoryCode} · 현재 저장값
+                        </option>
+                      ) : null}
+                      {categoryOptions.map((option) => (
+                        <option key={option._id} value={option.categoryCode}>
+                          {option.categoryCode} · {option.categoryName}
+                        </option>
+                      ))}
+                    </select>
+                    {categoryOptions.length === 0 && !isLoadingCategoryOptions ? (
+                      <p className="text-xs text-foreground-muted">
+                        <Link
+                          href="/design-docs/documents/categories"
+                          className="underline underline-offset-2"
+                        >
+                          문서분류체계
+                        </Link>
+                        에서 먼저 등록할 수 있습니다.
+                      </p>
+                    ) : null}
+                  </label>
                   <FormInput label="발신" value={state.senderName} onChange={(event) => updateState("senderName", event.target.value)} />
                   <FormInput label="수신" value={state.receiverName} onChange={(event) => updateState("receiverName", event.target.value)} />
                   <label className="md:col-span-2 block space-y-1">
@@ -531,9 +655,45 @@ export default function DocumentWizardStepPage() {
               {step === 3 ? (
                 <div className="space-y-3">
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto]">
-                    <FormInput label="결재자명" value={approverName} onChange={(event) => setApproverName(event.target.value)} />
+                    <label className="space-y-1">
+                      <span className="block text-sm font-medium text-foreground">결재자명</span>
+                      <select
+                        value={selectedApproverId}
+                        onChange={(event) => {
+                          const nextMember =
+                            approverOptions.find((item) => item._id === event.target.value) ?? null;
+                          setSelectedApproverId(event.target.value);
+                          setApproverRoleTitle(
+                            nextMember ? membershipRoleLabel[nextMember.membershipRole] : "",
+                          );
+                        }}
+                        disabled={isLoadingApproverOptions}
+                        className="h-9 w-full rounded-md border border-border bg-background-card px-3 text-sm text-foreground"
+                      >
+                        <option value="">
+                          {isLoadingApproverOptions ? "결재자 불러오는 중..." : "결재자 선택"}
+                        </option>
+                        {approverOptions.map((option) => (
+                          <option key={option._id} value={option._id}>
+                            {option.name}
+                            {option.email ? ` · ${option.email}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedApprover ? (
+                        <p className="text-xs text-foreground-muted">
+                          {selectedApprover.email || "이메일 없음"} · 현장 권한{" "}
+                          {membershipRoleLabel[selectedApprover.membershipRole]}
+                        </p>
+                      ) : null}
+                      {approverOptions.length === 0 && !isLoadingApproverOptions ? (
+                        <p className="text-xs text-foreground-muted">
+                          선택 가능한 현장 배치 사용자가 없습니다.
+                        </p>
+                      ) : null}
+                    </label>
                     <FormInput label="직책/역할" value={approverRoleTitle} onChange={(event) => setApproverRoleTitle(event.target.value)} />
-                    <button type="button" onClick={handleAddApprovalLine} className="mt-6 rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft">
+                    <button type="button" onClick={handleAddApprovalLine} disabled={!selectedApprover} className="mt-6 rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft disabled:opacity-60">
                       결재선 추가
                     </button>
                   </div>

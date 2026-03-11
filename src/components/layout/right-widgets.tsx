@@ -1,14 +1,14 @@
+"use client";
+
 import Link from "next/link";
-import { connectDB } from "@/lib/db";
-import { listPendingDocuments } from "@/lib/document-approval";
-import { resolveSiteId } from "@/lib/site-context";
-import Notice from "@/models/Notice";
+import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { WeatherMiniWidget } from "@/components/layout/weather-mini-widget";
 
 type SidebarNotice = {
   _id: string;
   title: string;
-  postedAt: Date;
+  postedAt: string | Date;
   isPinned: boolean;
 };
 
@@ -17,49 +17,66 @@ type SidebarPendingDocument = {
   docNo: string;
   title: string;
   currentApproverName: string;
-  submittedAt?: Date | null;
+  submittedAt?: string | Date | null;
 };
 
-function formatDate(value?: Date | null) {
+function formatDate(value?: string | Date | null) {
   if (!value) {
     return "-";
   }
 
-  return new Date(value).toLocaleDateString("ko-KR");
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return date.toLocaleDateString("ko-KR");
 }
 
-async function getRightWidgetData() {
-  try {
-    await connectDB();
-    const siteId = await resolveSiteId();
+export function RightWidgets() {
+  const pathname = usePathname();
+  const [notices, setNotices] = useState<SidebarNotice[]>([]);
+  const [pendingDocs, setPendingDocs] = useState<SidebarPendingDocument[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-    if (!siteId) {
-      return {
-        notices: [] as SidebarNotice[],
-        pendingDocs: [] as SidebarPendingDocument[],
-      };
-    }
+  const load = useCallback(async () => {
+    setIsLoading(true);
 
-    const [notices, pendingDocs] = await Promise.all([
-      Notice.find({ siteId })
-        .sort({ isPinned: -1, postedAt: -1 })
-        .limit(3)
-        .select({ title: 1, postedAt: 1, isPinned: 1 })
-        .lean<SidebarNotice[]>(),
-      listPendingDocuments(siteId, { limit: 3 }),
+    const [noticeResult, pendingResult] = await Promise.allSettled([
+      fetch("/api/dashboard/notices?limit=3&sort=latest", { cache: "no-store" }).then(
+        async (response) =>
+          (await response.json()) as {
+            ok: boolean;
+            data?: SidebarNotice[];
+          },
+      ),
+      fetch("/api/documents/pending?limit=3", { cache: "no-store" }).then(
+        async (response) =>
+          (await response.json()) as {
+            ok: boolean;
+            data?: SidebarPendingDocument[];
+          },
+      ),
     ]);
 
-    return { notices, pendingDocs };
-  } catch {
-    return {
-      notices: [] as SidebarNotice[],
-      pendingDocs: [] as SidebarPendingDocument[],
-    };
-  }
-}
+    if (noticeResult.status === "fulfilled" && noticeResult.value.ok) {
+      setNotices(Array.isArray(noticeResult.value.data) ? noticeResult.value.data : []);
+    } else {
+      setNotices([]);
+    }
 
-export async function RightWidgets() {
-  const { notices, pendingDocs } = await getRightWidgetData();
+    if (pendingResult.status === "fulfilled" && pendingResult.value.ok) {
+      setPendingDocs(Array.isArray(pendingResult.value.data) ? pendingResult.value.data : []);
+    } else {
+      setPendingDocs([]);
+    }
+
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load, pathname]);
 
   return (
     <aside className="hidden space-y-4 lg:block">
@@ -96,7 +113,9 @@ export async function RightWidgets() {
             ))}
           </ul>
         ) : (
-          <p className="mt-3 text-sm text-foreground-muted">등록된 공지사항이 없습니다.</p>
+          <p className="mt-3 text-sm text-foreground-muted">
+            {isLoading ? "공지사항을 불러오는 중..." : "등록된 공지사항이 없습니다."}
+          </p>
         )}
       </section>
 
@@ -126,7 +145,9 @@ export async function RightWidgets() {
             ))}
           </ul>
         ) : (
-          <p className="mt-3 text-sm text-foreground-muted">결재 대기 문서가 없습니다.</p>
+          <p className="mt-3 text-sm text-foreground-muted">
+            {isLoading ? "결재 대기 문서를 불러오는 중..." : "결재 대기 문서가 없습니다."}
+          </p>
         )}
       </section>
 

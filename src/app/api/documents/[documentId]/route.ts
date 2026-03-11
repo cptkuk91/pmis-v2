@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/db";
 import { success } from "@/lib/api-response";
 import { ApiError, handleApiError, NOT_FOUND, VALIDATION_ERROR } from "@/lib/api-error";
 import { requireRole } from "@/lib/permissions";
+import { ensureAllowedDocumentCategory } from "@/lib/document-category-code";
 import { resolveSiteId } from "@/lib/site-context";
 import { assertNoUnsafeHtml, assertSafeMutationRequest } from "@/lib/request-security";
 import { logUpdate, logDelete } from "@/lib/audit-logger";
@@ -356,7 +357,9 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       document.status = nextStatus;
     }
     if (body.categoryCode !== undefined) {
-      document.categoryCode = String(body.categoryCode ?? "").trim().toUpperCase();
+      const nextCategoryCode = String(body.categoryCode ?? "").trim().toUpperCase();
+      await ensureAllowedDocumentCategory(siteId, nextCategoryCode);
+      document.categoryCode = nextCategoryCode;
     }
     if (body.senderName !== undefined) {
       document.senderName = String(body.senderName ?? "").trim();

@@ -3,6 +3,10 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import { success } from "@/lib/api-response";
 import { ApiError, handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
+import {
+  generateNextDocumentCategoryCode,
+  validateDocumentCategoryParent,
+} from "@/lib/document-category-code";
 import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import { logCreate } from "@/lib/audit-logger";
@@ -55,15 +59,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as Record<string, unknown>;
-    const categoryCode = String(body.categoryCode ?? "").trim().toUpperCase();
     const categoryName = String(body.categoryName ?? "").trim();
     const parentCategoryId = String(body.parentCategoryId ?? "").trim();
-    if (!categoryCode || !categoryName) {
-      throw VALIDATION_ERROR("categoryCode, categoryName은 필수입니다.");
+    if (!categoryName) {
+      throw VALIDATION_ERROR("categoryName은 필수입니다.");
     }
-    if (parentCategoryId && !mongoose.Types.ObjectId.isValid(parentCategoryId)) {
-      throw VALIDATION_ERROR("parentCategoryId 형식이 올바르지 않습니다.");
-    }
+
+    await validateDocumentCategoryParent(siteId, parentCategoryId || null);
+    const categoryCode = await generateNextDocumentCategoryCode(siteId, parentCategoryId || null);
 
     const created = await DocumentCategory.create({
       siteId,

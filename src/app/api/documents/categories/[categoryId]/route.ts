@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import { success } from "@/lib/api-response";
 import { ApiError, handleApiError, NOT_FOUND, VALIDATION_ERROR } from "@/lib/api-error";
+import { validateDocumentCategoryParent } from "@/lib/document-category-code";
 import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import { logUpdate, logDelete } from "@/lib/audit-logger";
@@ -33,21 +34,13 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     }
 
     const body = (await request.json()) as Record<string, unknown>;
-    const nextCode = body.categoryCode === undefined ? undefined : String(body.categoryCode ?? "").trim().toUpperCase();
     const nextName = body.categoryName === undefined ? undefined : String(body.categoryName ?? "").trim();
     const parentCategoryId = body.parentCategoryId === undefined ? undefined : String(body.parentCategoryId ?? "").trim();
-    if (nextCode !== undefined && !nextCode) {
-      throw VALIDATION_ERROR("categoryCode는 비워둘 수 없습니다.");
-    }
     if (nextName !== undefined && !nextName) {
       throw VALIDATION_ERROR("categoryName은 비워둘 수 없습니다.");
     }
-    if (parentCategoryId && !mongoose.Types.ObjectId.isValid(parentCategoryId)) {
-      throw VALIDATION_ERROR("parentCategoryId 형식이 올바르지 않습니다.");
-    }
-
-    if (nextCode !== undefined) {
-      category.categoryCode = nextCode;
+    if (parentCategoryId !== undefined) {
+      await validateDocumentCategoryParent(siteId, parentCategoryId || null, categoryId);
     }
     if (nextName !== undefined) {
       category.categoryName = nextName;

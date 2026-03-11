@@ -5,6 +5,7 @@ import { paginated, success } from "@/lib/api-response";
 import { ApiError, handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { requireRole } from "@/lib/permissions";
 import { generateNextDocumentNo } from "@/lib/document-doc-no";
+import { ensureAllowedDocumentCategory } from "@/lib/document-category-code";
 import { resolveSiteId } from "@/lib/site-context";
 import { assertNoUnsafeHtml, assertSafeMutationRequest } from "@/lib/request-security";
 import { logCreate } from "@/lib/audit-logger";
@@ -176,6 +177,8 @@ export async function POST(request: NextRequest) {
     }
     const statusInput = String(body.status ?? "draft");
     const status: Status = isStatus(statusInput) ? statusInput : "draft";
+    const categoryCode = String(body.categoryCode ?? "").trim().toUpperCase();
+    await ensureAllowedDocumentCategory(siteId, categoryCode);
 
     let createdDocument: IDocument | null = null;
     let finalDocNo = requestedDocNo;
@@ -192,7 +195,7 @@ export async function POST(request: NextRequest) {
           ledgerType,
           direction,
           status,
-          categoryCode: String(body.categoryCode ?? "").trim().toUpperCase(),
+          categoryCode,
           senderName: String(body.senderName ?? requester.userName).trim(),
           receiverName: String(body.receiverName ?? "").trim(),
           draftByName: String(body.draftByName ?? requester.userName).trim(),
