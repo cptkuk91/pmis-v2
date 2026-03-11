@@ -6,13 +6,9 @@ import { success, paginated } from "@/lib/api-response";
 import { ApiError, handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
-import { assertNoUnsafeHtml, assertSafeMutationRequest } from "@/lib/request-security";
+import { assertSafeMutationRequest } from "@/lib/request-security";
 import { logCreate } from "@/lib/audit-logger";
-import { ensureAllowedWorkType } from "@/lib/work-type-code";
-
-function buildSubcontractReviewTitle(contractorName: string, workType: string) {
-  return workType ? `${contractorName} / ${workType}` : contractorName;
-}
+import { normalizeSubcontractReviewPayload } from "@/lib/subcontract-review";
 
 export async function GET(request: NextRequest) {
   try {
@@ -52,66 +48,33 @@ export async function POST(request: NextRequest) {
       throw new ApiError("siteId를 확인할 수 없습니다.", 400, "SITE_REQUIRED");
     }
 
-    const { items, ...reviewData } = body;
-    const contractorName = String(reviewData.contractorName ?? "").trim();
-    const workType = String(reviewData.workType ?? "").trim();
-    if (!contractorName) {
-      throw VALIDATION_ERROR("업체명은 필수입니다.");
-    }
-    assertNoUnsafeHtml(contractorName, "업체명");
-    if (workType) {
-      assertNoUnsafeHtml(workType, "공종");
-    }
-    await ensureAllowedWorkType(siteId, workType);
-    const title = buildSubcontractReviewTitle(contractorName, workType);
+    const payload = await normalizeSubcontractReviewPayload({ ...body, siteId });
 
     const review = await SubcontractReview.create({
-      ...reviewData,
-      siteId,
-      title,
-      contractorName,
-      workType: workType || undefined,
-      requestDate: reviewData.requestDate ? new Date(reviewData.requestDate) : new Date(),
+      siteId: payload.siteId,
+      title: payload.title,
+      contractorName: payload.contractorName,
+      workType: payload.workType || undefined,
+      contractAmount: payload.contractAmount,
+      requestDate: payload.requestDate,
+      remarks: payload.remarks || undefined,
       requestedBy: requester.userId ?? undefined,
       createdBy: requester.userId ?? undefined,
       updatedBy: requester.userId ?? undefined,
     });
 
-    if (Array.isArray(items) && items.length > 0) {
-      const normalizedItems = items.reduce<
-        Array<{
-          siteId: string;
-          reviewId: typeof review._id;
-          itemNo: number;
-          checkItem: string;
-          result: string;
-          remarks?: string;
-          createdBy?: string;
-          updatedBy?: string;
-        }>
-      >((acc, item: { checkItem: string; result?: string; remarks?: string }, idx: number) => {
-        const checkItem = String(item.checkItem ?? "").trim();
-        const remarks = String(item.remarks ?? "").trim();
-        if (!checkItem) {
-          return acc;
-        }
-        assertNoUnsafeHtml(checkItem, `검토항목(${idx + 1})`);
-        assertNoUnsafeHtml(remarks, `검토의견(${idx + 1})`);
-        acc.push({
-          siteId,
+    if (payload.items.length > 0) {
+      await SubcontractReviewItem.insertMany(
+        payload.items.map((item, index) => ({
+          siteId: payload.siteId,
           reviewId: review._id,
-          itemNo: idx + 1,
-          checkItem,
-          result: item.result || "pass",
-          remarks: remarks || undefined,
+          itemNo: index + 1,
+          checkItem: item.checkItem,
+          result: item.result,
+          remarks: item.remarks || undefined,
           createdBy: requester.userId ?? undefined,
           updatedBy: requester.userId ?? undefined,
-        });
-        return acc;
-      }, []);
-
-      await SubcontractReviewItem.insertMany(
-        normalizedItems,
+        })),
       );
     }
 

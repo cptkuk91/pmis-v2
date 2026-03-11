@@ -33,7 +33,7 @@ const menuGroups = [
   {
     label: "원가",
     items: [
-      { href: "/resource-procurement/profit-loss", label: "원가 분석" },
+      { href: "/resource-procurement/profit-loss", label: "원가 집계" },
     ],
   },
 ];
