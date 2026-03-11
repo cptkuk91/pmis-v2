@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { Pagination } from "@/components/ui/pagination";
@@ -14,6 +15,22 @@ type AttendanceRow = {
   isPresent: boolean;
   hoursWorked: number;
   overtimeHours: number;
+};
+
+type WorkforceOption = {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+};
+
+type WorkforceOptionsResponse = {
+  ok: boolean;
+  data: {
+    jobTypes: WorkforceOption[];
+    workTypes: WorkforceOption[];
+  };
+  error?: string;
 };
 
 const SITE_ID_KEY = "pmis:siteId";
@@ -31,10 +48,14 @@ const columns: DataTableColumn<AttendanceRow>[] = [
 
 export default function WorkforceDailyPage() {
   const [data, setData] = useState<AttendanceRow[]>([]);
+  const [jobTypeOptions, setJobTypeOptions] = useState<WorkforceOption[]>([]);
+  const [workTypeOptions, setWorkTypeOptions] = useState<WorkforceOption[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [showForm, setShowForm] = useState(false);
+  const [isLoadingOptions, setIsLoadingOptions] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     workerName: "", company: "", jobType: "", workType: "", attendanceDate: "",
     isPresent: true, hoursWorked: 8, overtimeHours: 0,
@@ -50,20 +71,58 @@ export default function WorkforceDailyPage() {
       });
   }, []);
 
+  const fetchOptions = useCallback(async () => {
+    const siteId = localStorage.getItem(SITE_ID_KEY) ?? "";
+    if (!siteId) return;
+
+    setIsLoadingOptions(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/resource/workforce/daily/options?siteId=${siteId}`, {
+        cache: "no-store",
+      });
+      const result = (await response.json()) as WorkforceOptionsResponse;
+      if (!result.ok) {
+        throw new Error(result.error ?? "직종/공종 옵션을 불러오지 못했습니다.");
+      }
+
+      setJobTypeOptions(result.data.jobTypes ?? []);
+      setWorkTypeOptions(result.data.workTypes ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "직종/공종 옵션을 불러오지 못했습니다.");
+    } finally {
+      setIsLoadingOptions(false);
+    }
+  }, []);
+
   useEffect(() => { fetchData(page, date); }, [page, date, fetchData]);
+  useEffect(() => {
+    if (!showForm) {
+      return;
+    }
+    void fetchOptions();
+  }, [showForm, fetchOptions]);
 
   async function handleSubmit() {
     const siteId = localStorage.getItem(SITE_ID_KEY) ?? "";
-    const res = await fetch("/api/resource/workforce/daily", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, siteId, attendanceDate: form.attendanceDate || date }),
-    });
-    const json = await res.json();
-    if (json.ok) {
-      setShowForm(false);
-      setForm({ workerName: "", company: "", jobType: "", workType: "", attendanceDate: "", isPresent: true, hoursWorked: 8, overtimeHours: 0 });
-      fetchData(1, date); setPage(1);
+    setError(null);
+    try {
+      const res = await fetch("/api/resource/workforce/daily", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, siteId, attendanceDate: form.attendanceDate || date }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setShowForm(false);
+        setForm({ workerName: "", company: "", jobType: "", workType: "", attendanceDate: "", isPresent: true, hoursWorked: 8, overtimeHours: 0 });
+        fetchData(1, date); setPage(1);
+        return;
+      }
+
+      setError(json.error ?? "일일 근태를 저장하지 못했습니다.");
+    } catch {
+      setError("일일 근태를 저장하지 못했습니다.");
     }
   }
 
@@ -73,7 +132,14 @@ export default function WorkforceDailyPage() {
         <h1 className="text-xl font-semibold text-foreground">일일 근태</h1>
         <div className="flex flex-wrap items-center gap-2">
           <input type="date" className="h-9 rounded-md border border-border px-3 text-sm" value={date} onChange={(e) => { setDate(e.target.value); setPage(1); }} />
-          <button type="button" onClick={() => setShowForm(!showForm)} className="rounded-md bg-[#ecebe8] px-4 py-1.5 text-sm font-medium text-foreground hover:bg-[#e2e0db]">
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setShowForm(!showForm);
+            }}
+            className="rounded-md bg-[#ecebe8] px-4 py-1.5 text-sm font-medium text-foreground hover:bg-[#e2e0db]"
+          >
             {showForm ? "취소" : "등록"}
           </button>
         </div>
@@ -83,11 +149,58 @@ export default function WorkforceDailyPage() {
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
             <div className="space-y-1"><label className="block text-sm font-medium text-foreground">성명 *</label><input className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.workerName} onChange={(e) => setForm({ ...form, workerName: e.target.value })} /></div>
             <div className="space-y-1"><label className="block text-sm font-medium text-foreground">소속</label><input className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} /></div>
-            <div className="space-y-1"><label className="block text-sm font-medium text-foreground">직종</label><input className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.jobType} onChange={(e) => setForm({ ...form, jobType: e.target.value })} /></div>
-            <div className="space-y-1"><label className="block text-sm font-medium text-foreground">공종</label><input className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.workType} onChange={(e) => setForm({ ...form, workType: e.target.value })} /></div>
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-foreground">직종</label>
+              <select
+                className="h-9 w-full rounded-md border border-border px-3 text-sm"
+                value={form.jobType}
+                onChange={(e) => setForm({ ...form, jobType: e.target.value })}
+                disabled={isLoadingOptions}
+              >
+                <option value="">{isLoadingOptions ? "직종 불러오는 중..." : "직종 선택"}</option>
+                {jobTypeOptions.map((option) => (
+                  <option key={option.id} value={option.name}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
+              {jobTypeOptions.length === 0 && !isLoadingOptions ? (
+                <p className="text-xs text-foreground-muted">
+                  <Link href="/system-admin/codes/job-types" className="underline underline-offset-2">
+                    직종 코드관리
+                  </Link>
+                  에서 먼저 등록할 수 있습니다.
+                </p>
+              ) : null}
+            </div>
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-foreground">공종</label>
+              <select
+                className="h-9 w-full rounded-md border border-border px-3 text-sm"
+                value={form.workType}
+                onChange={(e) => setForm({ ...form, workType: e.target.value })}
+                disabled={isLoadingOptions}
+              >
+                <option value="">{isLoadingOptions ? "공종 불러오는 중..." : "공종 선택"}</option>
+                {workTypeOptions.map((option) => (
+                  <option key={option.id} value={option.name}>
+                    {option.name}
+                  </option>
+                ))}
+              </select>
+              {workTypeOptions.length === 0 && !isLoadingOptions ? (
+                <p className="text-xs text-foreground-muted">
+                  <Link href="/system-admin/codes/work-types" className="underline underline-offset-2">
+                    공종 코드관리
+                  </Link>
+                  에서 먼저 등록할 수 있습니다.
+                </p>
+              ) : null}
+            </div>
             <div className="space-y-1"><label className="block text-sm font-medium text-foreground">근무시간</label><input type="number" className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.hoursWorked} onChange={(e) => setForm({ ...form, hoursWorked: Number(e.target.value) })} /></div>
             <div className="space-y-1"><label className="block text-sm font-medium text-foreground">잔업시간</label><input type="number" className="h-9 w-full rounded-md border border-border px-3 text-sm" value={form.overtimeHours} onChange={(e) => setForm({ ...form, overtimeHours: Number(e.target.value) })} /></div>
           </div>
+          {error ? <p className="text-sm text-[#b3261e]">{error}</p> : null}
           <div className="flex justify-end"><button type="button" onClick={handleSubmit} className="rounded-md bg-[#ecebe8] px-4 py-1.5 text-sm font-medium text-foreground hover:bg-[#e2e0db]">저장</button></div>
         </div>
       )}

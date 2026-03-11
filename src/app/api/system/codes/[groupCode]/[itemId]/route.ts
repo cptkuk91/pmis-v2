@@ -6,31 +6,13 @@ import { ApiError, handleApiError, NOT_FOUND, VALIDATION_ERROR } from "@/lib/api
 import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import { logUpdate, logDelete } from "@/lib/audit-logger";
+import { normalizeSystemCodeGroupCode } from "@/lib/system-code-group";
 import CodeGroup from "@/models/CodeGroup";
 import CodeItem from "@/models/CodeItem";
 
 type Params = {
   params: Promise<{ groupCode: string; itemId: string }>;
 };
-
-function normalizeGroupCode(groupCode: string): string {
-  if (groupCode === "partners") {
-    return "PARTNERS";
-  }
-  if (groupCode === "materials") {
-    return "MATERIALS";
-  }
-  if (groupCode === "equipment") {
-    return "EQUIPMENT";
-  }
-  if (groupCode === "material-specifications") {
-    return "MATERIAL_SPECIFICATIONS";
-  }
-  if (groupCode === "equipment-specifications") {
-    return "EQUIPMENT_SPECIFICATIONS";
-  }
-  return groupCode.toUpperCase();
-}
 
 export async function PATCH(request: NextRequest, { params }: Params) {
   try {
@@ -47,7 +29,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       throw VALIDATION_ERROR("itemId 형식이 올바르지 않습니다.");
     }
 
-    const normalizedGroupCode = normalizeGroupCode(groupCode);
+    const normalizedGroupCode = normalizeSystemCodeGroupCode(groupCode);
     const group = await CodeGroup.findOne({
       siteId,
       groupCode: normalizedGroupCode,
@@ -138,7 +120,7 @@ export async function DELETE(request: NextRequest, { params }: Params) {
       throw VALIDATION_ERROR("itemId 형식이 올바르지 않습니다.");
     }
 
-    const normalizedGroupCode = normalizeGroupCode(groupCode);
+    const normalizedGroupCode = normalizeSystemCodeGroupCode(groupCode);
     const group = await CodeGroup.findOne({
       siteId,
       groupCode: normalizedGroupCode,

@@ -5,31 +5,13 @@ import { ApiError, handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { requireRole } from "@/lib/permissions";
 import { resolveSiteId } from "@/lib/site-context";
 import { logCreate } from "@/lib/audit-logger";
+import { normalizeSystemCodeGroupCode } from "@/lib/system-code-group";
 import CodeGroup from "@/models/CodeGroup";
 import CodeItem from "@/models/CodeItem";
 
 type Params = {
   params: Promise<{ groupCode: string }>;
 };
-
-function normalizeGroupCode(groupCode: string): string {
-  if (groupCode === "partners") {
-    return "PARTNERS";
-  }
-  if (groupCode === "materials") {
-    return "MATERIALS";
-  }
-  if (groupCode === "equipment") {
-    return "EQUIPMENT";
-  }
-  if (groupCode === "material-specifications") {
-    return "MATERIAL_SPECIFICATIONS";
-  }
-  if (groupCode === "equipment-specifications") {
-    return "EQUIPMENT_SPECIFICATIONS";
-  }
-  return groupCode.toUpperCase();
-}
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -46,7 +28,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     }
 
     const { groupCode } = await params;
-    const normalizedGroupCode = normalizeGroupCode(groupCode);
+    const normalizedGroupCode = normalizeSystemCodeGroupCode(groupCode);
     const keyword = String(request.nextUrl.searchParams.get("q") ?? "").trim();
     const active = request.nextUrl.searchParams.get("active") ?? "true";
     const sort = request.nextUrl.searchParams.get("sort") ?? "sort_asc";
@@ -104,7 +86,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
 
     const { groupCode } = await params;
-    const normalizedGroupCode = normalizeGroupCode(groupCode);
+    const normalizedGroupCode = normalizeSystemCodeGroupCode(groupCode);
     const body = await request.json();
 
     const itemCode = String(body.itemCode ?? "").trim().toUpperCase();

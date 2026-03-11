@@ -10,6 +10,8 @@ const menuItems = [
   { href: "/system-admin/codes/material-specifications", label: "자재 규격 코드관리" },
   { href: "/system-admin/codes/equipment", label: "장비 코드관리" },
   { href: "/system-admin/codes/equipment-specifications", label: "장비 규격 코드관리" },
+  { href: "/system-admin/codes/job-types", label: "직종 코드관리" },
+  { href: "/system-admin/codes/work-types", label: "공종 코드관리" },
   { href: "/system-admin/sites", label: "현장 등록/관리" },
   { href: "/system-admin/site-memberships", label: "사용자-현장 매핑" },
   { href: "/system-admin/support", label: "Support" },

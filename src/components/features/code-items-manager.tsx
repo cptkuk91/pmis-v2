@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DataTable, FormInput, Modal } from "@/components/ui";
 import { hasMinRole, useCurrentUser } from "@/hooks/use-current-user";
+import type { SystemCodeRouteGroup } from "@/lib/system-code-group";
 
 type CodeGroup = {
   _id: string;
@@ -28,12 +29,7 @@ type CodeResponse = {
 type DeleteTarget = Pick<CodeItem, "_id" | "itemCode" | "itemName">;
 
 type Props = {
-  groupCode:
-    | "partners"
-    | "materials"
-    | "equipment"
-    | "material-specifications"
-    | "equipment-specifications";
+  groupCode: SystemCodeRouteGroup;
   title: string;
   subtitle?: string;
 };
