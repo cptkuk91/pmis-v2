@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DataTable, FormInput, Pagination, StatusBadge } from "@/components/ui";
+import { DataTable, FormInput, Modal, Pagination, StatusBadge } from "@/components/ui";
 import { hasMinRole, useCurrentUser } from "@/hooks/use-current-user";
 
 type IssueItem = {
@@ -19,6 +19,8 @@ type IssueResponse = {
   meta?: { page: number; totalPages: number };
   error?: string;
 };
+
+type DeleteTarget = Pick<IssueItem, "_id" | "title">;
 
 export default function SystemIssuesPage() {
   const { user, isLoading: isUserLoading } = useCurrentUser();
@@ -40,6 +42,8 @@ export default function SystemIssuesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadIssues = useCallback(
     async (nextPage: number) => {
@@ -90,6 +94,22 @@ export default function SystemIssuesPage() {
     setError(null);
   }
 
+  function handleRequestDelete(item: IssueItem) {
+    if (!canManage) {
+      return;
+    }
+    setDeleteTarget({ _id: item._id, title: item.title });
+    setMessage(null);
+    setError(null);
+  }
+
+  function handleCloseDeleteModal() {
+    if (deletingId) {
+      return;
+    }
+    setDeleteTarget(null);
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canManage) {
@@ -122,27 +142,31 @@ export default function SystemIssuesPage() {
     }
   }
 
-  async function handleDelete(issueId: string) {
-    if (!canManage || !confirm("이슈를 삭제하시겠습니까?")) {
+  async function handleDelete() {
+    if (!canManage || !deleteTarget) {
       return;
     }
     setError(null);
     setMessage(null);
+    setDeletingId(deleteTarget._id);
     try {
-      const response = await fetch(`/api/issues/${issueId}`, {
+      const response = await fetch(`/api/issues/${deleteTarget._id}`, {
         method: "DELETE",
       });
       const result = (await response.json()) as { ok: boolean; error?: string };
       if (!result.ok) {
         throw new Error(result.error ?? "이슈 삭제 실패");
       }
-      if (editingIssueId === issueId) {
+      if (editingIssueId === deleteTarget._id) {
         resetForm();
       }
+      setDeleteTarget(null);
       setMessage("이슈가 삭제되었습니다.");
       await loadIssues(page);
     } catch (err) {
       setError(err instanceof Error ? err.message : "이슈 삭제 실패");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -285,7 +309,7 @@ export default function SystemIssuesPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void handleDelete(row._id)}
+                    onClick={() => handleRequestDelete(row)}
                     className="rounded border border-danger/40 px-2 py-1 text-xs text-danger hover:bg-danger/10"
                   >
                     삭제
@@ -302,6 +326,33 @@ export default function SystemIssuesPage() {
       />
 
       <Pagination page={page} totalPages={totalPages} onPageChange={(nextPage) => void loadIssues(nextPage)} />
+
+      <Modal open={Boolean(deleteTarget)} title="이슈 삭제" onClose={handleCloseDeleteModal}>
+        <div className="space-y-4">
+          <p className="text-sm text-foreground">
+            <span className="font-medium">{deleteTarget?.title}</span> 이슈를 삭제하시겠습니까?
+          </p>
+          <p className="text-sm text-foreground-muted">삭제 후에는 복구할 수 없습니다.</p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleCloseDeleteModal}
+              disabled={Boolean(deletingId)}
+              className="rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft disabled:opacity-60"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              disabled={Boolean(deletingId)}
+              className="rounded-md border border-danger/40 bg-danger/10 px-4 py-2 text-sm font-medium text-danger hover:bg-danger/15 disabled:opacity-60"
+            >
+              삭제
+            </button>
+          </div>
+        </div>
+      </Modal>
     </section>
   );
 }

@@ -115,9 +115,6 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     if (body.location !== undefined) {
       meeting.location = String(body.location ?? "").trim();
     }
-    if (body.host !== undefined) {
-      meeting.host = String(body.host ?? "").trim();
-    }
     if (body.notice !== undefined) {
       meeting.notice = String(body.notice ?? "").trim();
     }

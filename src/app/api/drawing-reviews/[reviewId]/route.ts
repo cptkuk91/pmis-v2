@@ -64,18 +64,14 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const nextDrawingNo = body.drawingNo === undefined ? undefined : String(body.drawingNo ?? "").trim();
     const nextDrawingName = body.drawingName === undefined ? undefined : String(body.drawingName ?? "").trim();
 
-    if (nextDocNo !== undefined && !nextDocNo) {
-      throw VALIDATION_ERROR("문서번호는 비워둘 수 없습니다.");
+    if (nextDocNo !== undefined && nextDocNo !== review.docNo) {
+      throw VALIDATION_ERROR("문서번호는 자동 생성되어 수정할 수 없습니다.");
     }
     if (nextDrawingNo !== undefined && !nextDrawingNo) {
       throw VALIDATION_ERROR("도면번호는 비워둘 수 없습니다.");
     }
     if (nextDrawingName !== undefined && !nextDrawingName) {
       throw VALIDATION_ERROR("도면명은 비워둘 수 없습니다.");
-    }
-
-    if (nextDocNo !== undefined) {
-      review.docNo = nextDocNo;
     }
     if (nextDrawingNo !== undefined) {
       review.drawingNo = nextDrawingNo;

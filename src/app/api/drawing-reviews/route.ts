@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import { paginated, success } from "@/lib/api-response";
 import { ApiError, handleApiError, VALIDATION_ERROR } from "@/lib/api-error";
 import { requireRole } from "@/lib/permissions";
+import { generateNextDocumentNo } from "@/lib/document-doc-no";
 import { resolveSiteId } from "@/lib/site-context";
 import { assertNoUnsafeHtml, assertSafeMutationRequest } from "@/lib/request-security";
 import { logCreate } from "@/lib/audit-logger";
@@ -19,6 +20,15 @@ function parsePositiveInt(rawValue: string | null, fallback: number, max = 100):
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isDuplicateDocNoError(error: unknown): boolean {
+  const duplicateKeyError = error as {
+    code?: number;
+    keyPattern?: Record<string, unknown>;
+  };
+
+  return duplicateKeyError?.code === 11000 && Boolean(duplicateKeyError?.keyPattern?.docNo);
 }
 
 export async function GET(request: NextRequest) {
@@ -85,14 +95,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as Record<string, unknown>;
-    const docNo = String(body.docNo ?? "").trim();
     const drawingNo = String(body.drawingNo ?? "").trim();
     const drawingName = String(body.drawingName ?? "").trim();
     const rawDiscipline = String(body.discipline ?? "").trim();
 
-    if (!docNo) {
-      throw VALIDATION_ERROR("문서번호는 필수입니다.");
-    }
     if (!drawingNo) {
       throw VALIDATION_ERROR("도면번호는 필수입니다.");
     }
@@ -102,26 +108,42 @@ export async function POST(request: NextRequest) {
     if (rawDiscipline && !isDrawingDiscipline(rawDiscipline)) {
       throw VALIDATION_ERROR("기술구분 값이 올바르지 않습니다.");
     }
-    assertNoUnsafeHtml(docNo, "문서번호");
     assertNoUnsafeHtml(drawingNo, "도면번호");
     assertNoUnsafeHtml(drawingName, "도면명");
 
-    const created = await DrawingReview.create({
-      siteId,
-      docNo,
-      drawingNo,
-      drawingName,
-      discipline: rawDiscipline || DEFAULT_DRAWING_DISCIPLINE,
-      location: String(body.location ?? "").trim(),
-      requesterName: String(body.requesterName ?? requester.userName).trim(),
-      reviewerName: String(body.reviewerName ?? "").trim(),
-      requestedAt: body.requestedAt ? new Date(String(body.requestedAt)) : new Date(),
-      decisionStatus: "pending",
-      requestContent: String(body.requestContent ?? "").trim(),
-      classificationCode: String(body.classificationCode ?? "").trim(),
-      createdBy: requester.userId ?? undefined,
-      updatedBy: requester.userId ?? undefined,
-    });
+    let created = null;
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const docNo = await generateNextDocumentNo(siteId);
+
+      try {
+        created = await DrawingReview.create({
+          siteId,
+          docNo,
+          drawingNo,
+          drawingName,
+          discipline: rawDiscipline || DEFAULT_DRAWING_DISCIPLINE,
+          location: String(body.location ?? "").trim(),
+          requesterName: String(body.requesterName ?? requester.userName).trim(),
+          reviewerName: String(body.reviewerName ?? "").trim(),
+          requestedAt: body.requestedAt ? new Date(String(body.requestedAt)) : new Date(),
+          decisionStatus: "pending",
+          requestContent: String(body.requestContent ?? "").trim(),
+          classificationCode: String(body.classificationCode ?? "").trim(),
+          createdBy: requester.userId ?? undefined,
+          updatedBy: requester.userId ?? undefined,
+        });
+        break;
+      } catch (error) {
+        if (!isDuplicateDocNoError(error) || attempt === 4) {
+          throw error;
+        }
+      }
+    }
+
+    if (!created) {
+      throw new ApiError("문서번호 자동 생성에 실패했습니다.", 409, "DOC_NO_GENERATION_FAILED");
+    }
 
     logCreate(siteId, "drawing_review", String(created._id), requester);
     return success(created);

@@ -21,6 +21,11 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function resolveHostName(fallback: string | null | undefined): string {
+  const fallbackValue = String(fallback ?? "").trim();
+  return fallbackValue || "담당자 미지정";
+}
+
 export async function GET(request: NextRequest) {
   try {
     await requireRole("viewer");
@@ -99,6 +104,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as Record<string, unknown>;
     const category = String(body.category ?? "").trim();
     const agenda = String(body.agenda ?? "").trim();
+    const host = resolveHostName(requester.userName);
 
     if (!category) {
       throw VALIDATION_ERROR("회의구분은 필수입니다.");
@@ -108,6 +114,7 @@ export async function POST(request: NextRequest) {
     }
     assertNoUnsafeHtml(category, "회의구분");
     assertNoUnsafeHtml(agenda, "안건");
+    assertNoUnsafeHtml(host, "주관");
 
     const created = await Meeting.create({
       siteId,
@@ -117,7 +124,7 @@ export async function POST(request: NextRequest) {
       startTime: String(body.startTime ?? "09:00"),
       endTime: String(body.endTime ?? "10:00"),
       location: String(body.location ?? "회의실"),
-      host: String(body.host ?? requester.userName),
+      host,
       notice: String(body.notice ?? ""),
       createdBy: requester.userId ?? undefined,
       updatedBy: requester.userId ?? undefined,

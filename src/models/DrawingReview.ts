@@ -52,6 +52,7 @@ const DrawingReviewSchema = new Schema<IDrawingReview>(
 
 DrawingReviewSchema.index({ siteId: 1, requestedAt: -1 });
 DrawingReviewSchema.index({ siteId: 1, decisionStatus: 1, requestedAt: -1 });
+DrawingReviewSchema.index({ siteId: 1, docNo: 1 }, { unique: true });
 DrawingReviewSchema.plugin(baseFieldsPlugin);
 
 const DrawingReview: Model<IDrawingReview> =

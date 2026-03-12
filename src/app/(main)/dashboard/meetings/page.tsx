@@ -49,11 +49,18 @@ function toDateInputValue(value: string): string {
   return date.toISOString().slice(0, 10);
 }
 
+function formatLocalDateValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function createMeetingForm(item?: MeetingItem): MeetingFormState {
   return {
     category: item?.category ?? "",
     agenda: item?.agenda ?? "",
-    meetingDate: item ? toDateInputValue(item.meetingDate) : new Date().toISOString().slice(0, 10),
+    meetingDate: item ? toDateInputValue(item.meetingDate) : formatLocalDateValue(new Date()),
     startTime: item?.startTime ?? "09:00",
     endTime: item?.endTime ?? "10:00",
     location: item?.location ?? "회의실",
@@ -117,7 +124,14 @@ export default function DashboardMeetingsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/meetings?page=${nextPage}&limit=10`, {
+      const today = formatLocalDateValue(new Date());
+      const params = new URLSearchParams({
+        page: String(nextPage),
+        limit: "10",
+        dateFrom: today,
+        dateTo: today,
+      });
+      const response = await fetch(`/api/meetings?${params.toString()}`, {
         cache: "no-store",
       });
       const result = (await response.json()) as MeetingResponse;
@@ -231,9 +245,9 @@ export default function DashboardMeetingsPage() {
     <section className="space-y-4 rounded-xl border border-border bg-background-card p-6 shadow-[var(--shadow-soft)]">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">금일회의</h1>
+          <h1 className="text-xl font-semibold text-foreground">금일 회의</h1>
           <p className="mt-1 text-sm text-foreground-muted">
-            회의 현황은 여기서 확인하고, 등록/시간 설정은 공통 회의 관리에서 진행합니다.
+            오늘 등록된 회의 현황은 여기서 확인하고, 등록/시간 설정은 공통 회의 관리에서 진행합니다.
           </p>
         </div>
         {canManage ? (

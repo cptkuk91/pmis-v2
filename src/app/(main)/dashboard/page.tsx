@@ -51,11 +51,36 @@ async function getDashboardSummary() {
 export default async function DashboardPage() {
   const summary = await getDashboardSummary();
   const summaryCards = [
-    { title: "결재 대기 문서", value: `${summary.pendingDocs}건`, status: "warning" as const },
-    { title: "검토 대기", value: `${summary.pendingReviews}건`, status: "warning" as const },
-    { title: "금일 회의", value: `${summary.meetingsToday}건`, status: "info" as const },
-    { title: "신규 이슈", value: `${summary.openIssues}건`, status: "danger" as const },
-    { title: "공지사항", value: `${summary.notices}건`, status: "success" as const },
+    {
+      title: "결재 대기 문서",
+      value: `${summary.pendingDocs}건`,
+      status: "warning" as const,
+      href: "/dashboard/pending-docs",
+    },
+    {
+      title: "도면 검토 대기",
+      value: `${summary.pendingReviews}건`,
+      status: "warning" as const,
+      href: "/design-docs/design/reviews",
+    },
+    {
+      title: "금일 회의",
+      value: `${summary.meetingsToday}건`,
+      status: "info" as const,
+      href: "/dashboard/meetings",
+    },
+    {
+      title: "오픈 이슈",
+      value: `${summary.openIssues}건`,
+      status: "danger" as const,
+      href: "/system-admin/common/issues",
+    },
+    {
+      title: "공지사항",
+      value: `${summary.notices}건`,
+      status: "success" as const,
+      href: "/dashboard/notices",
+    },
   ];
 
   return (
@@ -80,18 +105,38 @@ export default async function DashboardPage() {
       </header>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-        {summaryCards.map((card) => (
-          <article
-            key={card.title}
-            className="rounded-xl border border-border bg-background-card p-4 shadow-[var(--shadow-soft)]"
-          >
-            <p className="text-sm text-foreground-muted">{card.title}</p>
-            <p className="mt-2 text-2xl font-bold text-foreground">{card.value}</p>
-            <div className="mt-3">
-              <StatusBadge status={card.status} />
-            </div>
-          </article>
-        ))}
+        {summaryCards.map((card) => {
+          const content = (
+            <>
+              <p className="text-sm text-foreground-muted">{card.title}</p>
+              <p className="mt-2 text-2xl font-bold text-foreground">{card.value}</p>
+              <div className="mt-3">
+                <StatusBadge status={card.status} />
+              </div>
+            </>
+          );
+
+          if (card.href) {
+            return (
+              <Link
+                key={card.title}
+                href={card.href}
+                className="rounded-xl border border-border bg-background-card p-4 shadow-[var(--shadow-soft)] transition hover:border-slate-300 hover:bg-background-soft"
+              >
+                {content}
+              </Link>
+            );
+          }
+
+          return (
+            <article
+              key={card.title}
+              className="rounded-xl border border-border bg-background-card p-4 shadow-[var(--shadow-soft)]"
+            >
+              {content}
+            </article>
+          );
+        })}
       </div>
     </section>
   );

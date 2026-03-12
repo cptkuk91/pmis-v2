@@ -1,4 +1,5 @@
 import DocumentModel from "@/models/Document";
+import DrawingReview from "@/models/DrawingReview";
 
 const DOCUMENT_NO_SEQUENCE_WIDTH = 5;
 
@@ -26,14 +27,27 @@ function parseDocumentSequence(docNo: string, datePart: string): number {
 export async function generateNextDocumentNo(siteId: string, baseDate: Date = new Date()): Promise<string> {
   const datePart = formatDatePart(baseDate);
   const regex = new RegExp(`^DOC-${datePart}-(\\d{${DOCUMENT_NO_SEQUENCE_WIDTH}})$`);
-  const latestDocument = await DocumentModel.findOne({
-    siteId,
-    docNo: regex,
-  })
-    .sort({ docNo: -1 })
-    .select({ docNo: 1 })
-    .lean<{ docNo?: string } | null>();
+  const [latestDocument, latestDrawingReview] = await Promise.all([
+    DocumentModel.findOne({
+      siteId,
+      docNo: regex,
+    })
+      .sort({ docNo: -1 })
+      .select({ docNo: 1 })
+      .lean<{ docNo?: string } | null>(),
+    DrawingReview.findOne({
+      siteId,
+      docNo: regex,
+    })
+      .sort({ docNo: -1 })
+      .select({ docNo: 1 })
+      .lean<{ docNo?: string } | null>(),
+  ]);
 
-  const nextSequence = parseDocumentSequence(latestDocument?.docNo ?? "", datePart) + 1;
+  const nextSequence =
+    Math.max(
+      parseDocumentSequence(latestDocument?.docNo ?? "", datePart),
+      parseDocumentSequence(latestDrawingReview?.docNo ?? "", datePart),
+    ) + 1;
   return buildDocumentNo(datePart, nextSequence);
 }

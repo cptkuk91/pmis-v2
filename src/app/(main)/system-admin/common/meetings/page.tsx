@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DataTable, FormInput, Pagination } from "@/components/ui";
+import { DataTable, FormInput, Modal, Pagination } from "@/components/ui";
 import { MeetingMinutesPanel } from "@/components/features/system-admin/meeting-minutes-panel";
 import { hasMinRole, useCurrentUser } from "@/hooks/use-current-user";
 
@@ -68,13 +68,14 @@ export default function SystemMeetingsPage() {
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [location, setLocation] = useState("회의실");
-  const [host, setHost] = useState("");
   const [notice, setNotice] = useState("");
 
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<MeetingItem | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     setTab(currentTabFromQuery);
@@ -135,7 +136,6 @@ export default function SystemMeetingsPage() {
     setStartTime("09:00");
     setEndTime("10:00");
     setLocation("회의실");
-    setHost("");
     setNotice("");
   }
 
@@ -147,10 +147,25 @@ export default function SystemMeetingsPage() {
     setStartTime(item.startTime ?? "09:00");
     setEndTime(item.endTime ?? "10:00");
     setLocation(item.location ?? "");
-    setHost(item.host ?? "");
     setNotice(item.notice ?? "");
     setMessage(null);
     setError(null);
+  }
+
+  function handleRequestDelete(item: MeetingItem) {
+    if (!canManage) {
+      return;
+    }
+    setDeleteTarget(item);
+    setMessage(null);
+    setError(null);
+  }
+
+  function handleCloseDeleteModal() {
+    if (deletingId) {
+      return;
+    }
+    setDeleteTarget(null);
   }
 
   async function handleCreateOrUpdate(event: React.FormEvent<HTMLFormElement>) {
@@ -175,7 +190,6 @@ export default function SystemMeetingsPage() {
           startTime,
           endTime,
           location,
-          host,
           notice,
         }),
       });
@@ -194,27 +208,31 @@ export default function SystemMeetingsPage() {
     }
   }
 
-  async function handleDelete(meetingId: string) {
-    if (!canManage || !confirm("회의를 삭제하시겠습니까?")) {
+  async function handleDelete() {
+    if (!canManage || !deleteTarget) {
       return;
     }
     setError(null);
     setMessage(null);
+    setDeletingId(deleteTarget._id);
     try {
-      const response = await fetch(`/api/meetings/${meetingId}`, {
+      const response = await fetch(`/api/meetings/${deleteTarget._id}`, {
         method: "DELETE",
       });
       const result = (await response.json()) as { ok: boolean; error?: string };
       if (!result.ok) {
         throw new Error(result.error ?? "회의 삭제 실패");
       }
-      if (editingMeetingId === meetingId) {
+      if (editingMeetingId === deleteTarget._id) {
         resetForm();
       }
+      setDeleteTarget(null);
       setMessage("회의가 삭제되었습니다.");
       await loadMeetings(page);
     } catch (err) {
       setError(err instanceof Error ? err.message : "회의 삭제 실패");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -336,11 +354,6 @@ export default function SystemMeetingsPage() {
                 onChange={(event) => setEndTime(event.target.value)}
               />
               <FormInput
-                label="주관"
-                value={host}
-                onChange={(event) => setHost(event.target.value)}
-              />
-              <FormInput
                 label="공지사항"
                 value={notice}
                 onChange={(event) => setNotice(event.target.value)}
@@ -405,7 +418,7 @@ export default function SystemMeetingsPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => void handleDelete(row._id)}
+                        onClick={() => handleRequestDelete(row)}
                         className="rounded border border-danger/40 px-2 py-1 text-xs text-danger hover:bg-danger/10"
                       >
                         삭제
@@ -422,6 +435,36 @@ export default function SystemMeetingsPage() {
           />
 
           <Pagination page={page} totalPages={totalPages} onPageChange={(nextPage) => void loadMeetings(nextPage)} />
+
+          <Modal open={Boolean(deleteTarget)} title="회의 삭제" onClose={handleCloseDeleteModal}>
+            <div className="space-y-4">
+              <p className="text-sm text-foreground">
+                <span className="font-medium">{deleteTarget?.agenda}</span> 회의를 삭제하시겠습니까?
+              </p>
+              <p className="text-sm text-foreground-muted">
+                삭제 후에는 복구할 수 없습니다.
+                {deleteTarget?.meetingDate ? ` 회의일: ${formatDate(deleteTarget.meetingDate)}` : ""}
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleCloseDeleteModal}
+                  disabled={Boolean(deletingId)}
+                  className="rounded-md border border-border bg-background-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-soft disabled:opacity-60"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDelete()}
+                  disabled={Boolean(deletingId)}
+                  className="rounded-md border border-danger/40 bg-danger/10 px-4 py-2 text-sm font-medium text-danger hover:bg-danger/15 disabled:opacity-60"
+                >
+                  삭제
+                </button>
+              </div>
+            </div>
+          </Modal>
         </>
       ) : (
         <MeetingMinutesPanel />
