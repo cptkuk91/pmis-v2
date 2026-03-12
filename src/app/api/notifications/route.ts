@@ -9,12 +9,13 @@ import Site from "@/models/Site";
 import DrawingReview from "@/models/DrawingReview";
 import Issue from "@/models/Issue";
 import IntegrationSyncLog from "@/models/IntegrationSyncLog";
+import { getQaOpsSnapshot } from "@/lib/qa-ops-summary";
 
 type NotificationSeverity = "info" | "warning" | "danger";
 
 type NotificationItem = {
   id: string;
-  type: "document" | "drawing_review" | "issue" | "weather" | "sync";
+  type: "document" | "drawing_review" | "issue" | "weather" | "sync" | "qa_capa" | "qa_audit" | "qa_kpi";
   severity: NotificationSeverity;
   title: string;
   message: string;
@@ -104,6 +105,15 @@ export async function GET() {
         .lean(),
     ]);
 
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const qaSummary = await getQaOpsSnapshot(siteId, {
+      limit: 3,
+      referenceDate: startOfToday,
+      kpiYear: startOfToday.getFullYear(),
+    });
+
     let weatherWarningCount = 0;
     let weatherMessage = "";
     let weatherTimestamp = new Date().toISOString();
@@ -183,6 +193,42 @@ export async function GET() {
     );
 
     items.push(
+      ...qaSummary.overdueCapas.map((capa) => ({
+        id: `qa-capa-${String(capa._id)}`,
+        type: "qa_capa" as const,
+        severity: "danger" as const,
+        title: "기한 경과 CAPA",
+        message: `${String(capa.title ?? "CAPA 제목 없음")} · 담당 ${String(capa.assigneeName ?? "미지정")}`,
+        href: "/qa/capa",
+        timestamp: toIsoString(readDateField(capa, "dueDate")),
+      })),
+    );
+
+    items.push(
+      ...qaSummary.pendingAudits.map((audit) => ({
+        id: `qa-audit-${String(audit._id)}`,
+        type: "qa_audit" as const,
+        severity: "warning" as const,
+        title: "미완료 내부 심사",
+        message: `${audit.auditTitle || "심사 제목 없음"} · 예정 ${toIsoString(audit.plannedDate).slice(0, 10)}`,
+        href: "/qa/audits",
+        timestamp: toIsoString(readDateField(audit, "plannedDate")),
+      })),
+    );
+
+    items.push(
+      ...qaSummary.kpiAlerts.map((item) => ({
+        id: `qa-kpi-${String(item._id)}`,
+        type: "qa_kpi" as const,
+        severity: "danger" as const,
+        title: `경고 KPI ${item.metricCode}`,
+        message: item.alertMessage,
+        href: `/qa/kpi?alertOnly=true&year=${startOfToday.getFullYear()}`,
+        timestamp: startOfToday.toISOString(),
+      })),
+    );
+
+    items.push(
       ...failedSyncList.map((syncLog) => ({
         id: `sync-${String(syncLog._id)}`,
         type: "sync" as const,
@@ -198,10 +244,20 @@ export async function GET() {
 
     const summary = {
       unreadCount:
-        pendingDocs + pendingReviewCount + openIssueCount + weatherWarningCount + failedSyncCount,
+        pendingDocs +
+        pendingReviewCount +
+        openIssueCount +
+        qaSummary.overdueCapaCount +
+        qaSummary.pendingAuditCount +
+        qaSummary.kpiAlertCount +
+        weatherWarningCount +
+        failedSyncCount,
       pendingDocs,
       pendingDrawingReviews: pendingReviewCount,
       openIssues: openIssueCount,
+      overdueCapaCount: qaSummary.overdueCapaCount,
+      pendingQaAudits: qaSummary.pendingAuditCount,
+      qaKpiAlerts: qaSummary.kpiAlertCount,
       weatherWarnings: weatherWarningCount,
       failedSyncJobs: failedSyncCount,
       siteName: site?.siteName ?? "",

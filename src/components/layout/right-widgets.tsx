@@ -1,8 +1,9 @@
-"use client";
-
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { connectDB } from "@/lib/db";
+import { listPendingDocuments } from "@/lib/document-approval";
+import { getQaOpsSnapshot } from "@/lib/qa-ops-summary";
+import { resolveSiteId } from "@/lib/site-context";
+import Notice from "@/models/Notice";
 import { WeatherMiniWidget } from "@/components/layout/weather-mini-widget";
 
 type SidebarNotice = {
@@ -33,50 +34,55 @@ function formatDate(value?: string | Date | null) {
   return date.toLocaleDateString("ko-KR");
 }
 
-export function RightWidgets() {
-  const pathname = usePathname();
-  const [notices, setNotices] = useState<SidebarNotice[]>([]);
-  const [pendingDocs, setPendingDocs] = useState<SidebarPendingDocument[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+async function getRightWidgetData() {
+  await connectDB();
+  const siteId = await resolveSiteId();
+  if (!siteId) {
+    return {
+      notices: [] as SidebarNotice[],
+      pendingDocs: [] as SidebarPendingDocument[],
+      qaSummary: {
+        overdueCapaCount: 0,
+        pendingAuditCount: 0,
+        kpiAlertCount: 0,
+      },
+    };
+  }
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
+  const [notices, pendingDocs, qaOps] = await Promise.all([
+    Notice.find({ siteId })
+      .sort({ isPinned: -1, postedAt: -1 })
+      .limit(3)
+      .select({ title: 1, postedAt: 1, isPinned: 1 })
+      .lean(),
+    listPendingDocuments(siteId, { limit: 3 }),
+    getQaOpsSnapshot(siteId, { limit: 3, referenceDate: new Date(), kpiYear: new Date().getFullYear() }),
+  ]);
 
-    const [noticeResult, pendingResult] = await Promise.allSettled([
-      fetch("/api/dashboard/notices?limit=3&sort=latest", { cache: "no-store" }).then(
-        async (response) =>
-          (await response.json()) as {
-            ok: boolean;
-            data?: SidebarNotice[];
-          },
-      ),
-      fetch("/api/documents/pending?limit=3", { cache: "no-store" }).then(
-        async (response) =>
-          (await response.json()) as {
-            ok: boolean;
-            data?: SidebarPendingDocument[];
-          },
-      ),
-    ]);
+  return {
+    notices: notices.map((item) => ({
+      _id: String(item._id),
+      title: String(item.title ?? ""),
+      postedAt: item.postedAt ?? null,
+      isPinned: Boolean(item.isPinned),
+    })),
+    pendingDocs: pendingDocs.map((item) => ({
+      _id: item._id,
+      docNo: item.docNo,
+      title: item.title,
+      currentApproverName: item.currentApproverName,
+      submittedAt: item.submittedAt ?? null,
+    })),
+    qaSummary: {
+      overdueCapaCount: qaOps.overdueCapaCount,
+      pendingAuditCount: qaOps.pendingAuditCount,
+      kpiAlertCount: qaOps.kpiAlertCount,
+    },
+  };
+}
 
-    if (noticeResult.status === "fulfilled" && noticeResult.value.ok) {
-      setNotices(Array.isArray(noticeResult.value.data) ? noticeResult.value.data : []);
-    } else {
-      setNotices([]);
-    }
-
-    if (pendingResult.status === "fulfilled" && pendingResult.value.ok) {
-      setPendingDocs(Array.isArray(pendingResult.value.data) ? pendingResult.value.data : []);
-    } else {
-      setPendingDocs([]);
-    }
-
-    setIsLoading(false);
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load, pathname]);
+export async function RightWidgets() {
+  const { notices, pendingDocs, qaSummary } = await getRightWidgetData();
 
   return (
     <aside className="hidden space-y-4 lg:block">
@@ -113,9 +119,7 @@ export function RightWidgets() {
             ))}
           </ul>
         ) : (
-          <p className="mt-3 text-sm text-foreground-muted">
-            {isLoading ? "공지사항을 불러오는 중..." : "등록된 공지사항이 없습니다."}
-          </p>
+          <p className="mt-3 text-sm text-foreground-muted">등록된 공지사항이 없습니다.</p>
         )}
       </section>
 
@@ -145,10 +149,43 @@ export function RightWidgets() {
             ))}
           </ul>
         ) : (
-          <p className="mt-3 text-sm text-foreground-muted">
-            {isLoading ? "결재 대기 문서를 불러오는 중..." : "결재 대기 문서가 없습니다."}
-          </p>
+          <p className="mt-3 text-sm text-foreground-muted">결재 대기 문서가 없습니다.</p>
         )}
+      </section>
+
+      <section className="rounded-xl border border-border bg-background-card p-4 shadow-[var(--shadow-soft)]">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">QA 운영 경고</h3>
+          <Link
+            href="/qa/kpi"
+            className="text-xs font-medium text-foreground-muted transition hover:text-foreground"
+          >
+            QA 이동
+          </Link>
+        </div>
+        <div className="mt-3 space-y-2">
+          <Link
+            href="/qa/audits"
+            className="flex items-center justify-between rounded-lg border border-border bg-background-soft px-3 py-2 text-sm hover:bg-background-card"
+          >
+            <span className="text-foreground">미완료 내부 심사</span>
+            <span className="font-semibold text-amber-700">{qaSummary.pendingAuditCount}건</span>
+          </Link>
+          <Link
+            href="/qa/capa?overdueOnly=true"
+            className="flex items-center justify-between rounded-lg border border-border bg-background-soft px-3 py-2 text-sm hover:bg-background-card"
+          >
+            <span className="text-foreground">기한 경과 CAPA</span>
+            <span className="font-semibold text-rose-700">{qaSummary.overdueCapaCount}건</span>
+          </Link>
+          <Link
+            href={`/qa/kpi?alertOnly=true&year=${new Date().getFullYear()}`}
+            className="flex items-center justify-between rounded-lg border border-border bg-background-soft px-3 py-2 text-sm hover:bg-background-card"
+          >
+            <span className="text-foreground">경고 KPI</span>
+            <span className="font-semibold text-rose-700">{qaSummary.kpiAlertCount}건</span>
+          </Link>
+        </div>
       </section>
 
       <section className="rounded-xl border border-border bg-background-card p-4 shadow-[var(--shadow-soft)]">
