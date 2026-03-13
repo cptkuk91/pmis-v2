@@ -125,8 +125,6 @@ PMIS_REQUIRE_LOGIN=false
 | `npm start` | 프로덕션 서버 실행 (`3070`) |
 | `npm run lint` | ESLint 실행 |
 | `npm run backfill:site-coordinates` | 현장 좌표 백필 |
-| `npm run db:seed:qa` | QA 샘플 데이터 시드 |
-| `npm run db:seed:qc` | QC 샘플 데이터 시드 |
 | `npm run phase6:team1:e2e` | E2E smoke 점검 스크립트 |
 | `npm run phase6:team1:perf` | 성능 점검 스크립트 |
 | `npm run phase6:team1:index` | 인덱스 점검 스크립트 |
@@ -135,7 +133,7 @@ PMIS_REQUIRE_LOGIN=false
 
 참고:
 
-- `scripts/seed-workforce-codes.ts`도 존재하지만 현재 `package.json` 스크립트에는 직접 연결돼 있지 않습니다.
+- `scripts/` 아래에는 유지보수용 일회성 스크립트가 일부 남아 있을 수 있지만, 현재 `package.json`에는 seed 실행 스크립트를 노출하지 않습니다.
 
 ## 7. 폴더 구조
 
