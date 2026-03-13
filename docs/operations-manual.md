@@ -223,8 +223,14 @@ draft (작성중) --> in_review (검토중) --> approved (승인) 또는 rejecte
 
 #### QC (`/qc`)
 
-- 품질관리(QC) 메뉴는 구성 완료 상태이며 일부 화면부터 우선 구현 중이다.
-- 현재 `자재 검사` 화면을 우선 적용했고, 나머지 메뉴는 단계적으로 구현한다.
+- QC 메뉴는 실제 운영 화면으로 연결되어 있다.
+- **검사·시험 계획 (ITP)** (`/qc/itp`): 공종별 검사 기준, 체크포인트, 버전 관리
+- **자재 검사** (`/qc/material-inspection`): 반입 자재 검사, 판정 사유, 보류/반출, NCR 연계
+- **공정 검사** (`/qc/process-inspection`): 공정별 검사, 시정조치 요청, 첨부 증빙 관리
+- **시험 성적서** (`/qc/test-reports`): 기준치 대비 자동 판정, 참조 검사 연결, NCR 검토
+- **NCR** (`/qc/nonconformance`): 부적합 등록, 원인분석, 조치 계획, 검증 관리
+- **인수·준공 검사** (`/qc/handover-inspection`): 인수/준공 checklist, 보완 요청, 승인 요청 관리
+- **품질 대시보드** (`/qc/quality-dashboard`): 자재 합격률, 시험 기준치 이탈, NCR, 인수·준공 리스크 요약
 
 #### 안전 (`/quality-safety`)
 

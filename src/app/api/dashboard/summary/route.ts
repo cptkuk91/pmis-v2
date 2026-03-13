@@ -8,6 +8,7 @@ import Meeting from "@/models/Meeting";
 import Issue from "@/models/Issue";
 import DocumentModel from "@/models/Document";
 import { getQaOpsSnapshot } from "@/lib/qa-ops-summary";
+import { getQcOpsSnapshot } from "@/lib/qc-ops-summary";
 
 export async function GET() {
   try {
@@ -25,6 +26,10 @@ export async function GET() {
         qaPendingAudits: 0,
         qaOverdueCapas: 0,
         qaKpiAlerts: 0,
+        qcOverdueNcrCount: 0,
+        qcPendingHandoverCount: 0,
+        qcFailedTestCount: 0,
+        qcRiskWorkTypeCount: 0,
       });
     }
 
@@ -32,12 +37,13 @@ export async function GET() {
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
 
-    const [notices, meetingsToday, openIssues, pendingDocs, qaSummary] = await Promise.all([
+    const [notices, meetingsToday, openIssues, pendingDocs, qaSummary, qcSummary] = await Promise.all([
       Notice.countDocuments({ siteId }),
       Meeting.countDocuments({ siteId, meetingDate: { $gte: startOfDay, $lt: endOfDay } }),
       Issue.countDocuments({ siteId, status: "open" }),
       DocumentModel.countDocuments({ siteId, status: { $in: ["draft", "in_review"] } }),
       getQaOpsSnapshot(siteId, { limit: 3, referenceDate: today, kpiYear: today.getFullYear() }),
+      getQcOpsSnapshot(siteId, { limit: 3, referenceDate: today, monthsBack: 6 }),
     ]);
 
     return success({
@@ -49,6 +55,10 @@ export async function GET() {
       qaPendingAudits: qaSummary.pendingAuditCount,
       qaOverdueCapas: qaSummary.overdueCapaCount,
       qaKpiAlerts: qaSummary.kpiAlertCount,
+      qcOverdueNcrCount: qcSummary.overdueNcrCount,
+      qcPendingHandoverCount: qcSummary.pendingHandoverCount,
+      qcFailedTestCount: qcSummary.testOutOfSpecCount,
+      qcRiskWorkTypeCount: qcSummary.topRiskWorkTypeCount,
     });
   } catch (err) {
     return handleApiError(err);

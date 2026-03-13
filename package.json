@@ -9,6 +9,7 @@
     "lint": "eslint",
     "backfill:site-coordinates": "node --import tsx scripts/backfill-site-coordinates.ts",
     "db:seed:qa": "node --import tsx scripts/seed-qa-module.ts",
+    "db:seed:qc": "node --import tsx scripts/seed-qc-module.ts",
     "phase6:team1:e2e": "node scripts/phase6/team1/e2e-smoke.mjs",
     "phase6:team1:perf": "node scripts/phase6/team1/perf-check.mjs",
     "phase6:team1:index": "node scripts/phase6/team1/index-check.mjs",

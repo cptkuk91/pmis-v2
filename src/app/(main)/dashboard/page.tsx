@@ -7,6 +7,7 @@ import Meeting from "@/models/Meeting";
 import Issue from "@/models/Issue";
 import DrawingReview from "@/models/DrawingReview";
 import { getQaOpsSnapshot } from "@/lib/qa-ops-summary";
+import { getQcOpsSnapshot } from "@/lib/qc-ops-summary";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,10 @@ async function getDashboardSummary() {
         qaPendingAudits: 0,
         qaOverdueCapas: 0,
         qaKpiAlerts: 0,
+        qcOverdueNcrs: 0,
+        qcPendingHandovers: 0,
+        qcFailedTests: 0,
+        qcRiskWorkTypes: 0,
       };
     }
 
@@ -33,13 +38,14 @@ async function getDashboardSummary() {
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
 
-    const [notices, meetingsToday, openIssues, pendingDocs, pendingReviews, qaSummary] = await Promise.all([
+    const [notices, meetingsToday, openIssues, pendingDocs, pendingReviews, qaSummary, qcSummary] = await Promise.all([
       Notice.countDocuments({ siteId }),
       Meeting.countDocuments({ siteId, meetingDate: { $gte: startOfDay, $lt: endOfDay } }),
       Issue.countDocuments({ siteId, status: "open" }),
       countPendingDocuments(siteId),
       DrawingReview.countDocuments({ siteId, decisionStatus: "pending" }),
       getQaOpsSnapshot(siteId, { limit: 3, referenceDate: today, kpiYear: today.getFullYear() }),
+      getQcOpsSnapshot(siteId, { limit: 3, referenceDate: today, monthsBack: 6 }),
     ]);
 
     return {
@@ -52,6 +58,10 @@ async function getDashboardSummary() {
       qaPendingAudits: qaSummary.pendingAuditCount,
       qaOverdueCapas: qaSummary.overdueCapaCount,
       qaKpiAlerts: qaSummary.kpiAlertCount,
+      qcOverdueNcrs: qcSummary.overdueNcrCount,
+      qcPendingHandovers: qcSummary.pendingHandoverCount,
+      qcFailedTests: qcSummary.testOutOfSpecCount,
+      qcRiskWorkTypes: qcSummary.topRiskWorkTypeCount,
     };
   } catch {
     return {
@@ -64,6 +74,10 @@ async function getDashboardSummary() {
       qaPendingAudits: 0,
       qaOverdueCapas: 0,
       qaKpiAlerts: 0,
+      qcOverdueNcrs: 0,
+      qcPendingHandovers: 0,
+      qcFailedTests: 0,
+      qcRiskWorkTypes: 0,
     };
   }
 }
@@ -126,6 +140,32 @@ export default async function DashboardPage() {
       value: `${summary.qaKpiAlerts}건`,
       status: "danger" as const,
       href: `/qa/kpi?alertOnly=true&year=${new Date().getFullYear()}`,
+    },
+  ];
+  const qcOperationCards = [
+    {
+      title: "지연 NCR",
+      value: `${summary.qcOverdueNcrs}건`,
+      status: "danger" as const,
+      href: "/qc/nonconformance?overdueOnly=true",
+    },
+    {
+      title: "미조치 인수·준공",
+      value: `${summary.qcPendingHandovers}건`,
+      status: "warning" as const,
+      href: "/qc/handover-inspection?unresolvedOnly=true",
+    },
+    {
+      title: "기준치 이탈 시험",
+      value: `${summary.qcFailedTests}건`,
+      status: "danger" as const,
+      href: "/qc/test-reports",
+    },
+    {
+      title: "QC 리스크 공종",
+      value: `${summary.qcRiskWorkTypes}개`,
+      status: "info" as const,
+      href: "/qc/quality-dashboard",
     },
   ];
 
@@ -195,6 +235,36 @@ export default async function DashboardPage() {
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {qaOperationCards.map((card) => (
+            <Link
+              key={card.title}
+              href={card.href}
+              className="rounded-xl border border-border bg-background-soft p-4 transition hover:border-slate-300 hover:bg-background-card"
+            >
+              <p className="text-sm text-foreground-muted">{card.title}</p>
+              <p className="mt-2 text-2xl font-bold text-foreground">{card.value}</p>
+              <div className="mt-3">
+                <StatusBadge status={card.status} />
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded-xl border border-border bg-background-card p-4 shadow-[var(--shadow-soft)]">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold text-foreground">QC 운영 리스크</h2>
+            <p className="mt-1 text-sm text-foreground-muted">
+              NCR, 인수·준공 검사, 시험 성적서 기준으로 즉시 확인이 필요한 품질 리스크입니다.
+            </p>
+          </div>
+          <Link href="/qc/quality-dashboard" className="text-xs font-medium text-sky-700 hover:underline">
+            QC 대시보드 열기
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          {qcOperationCards.map((card) => (
             <Link
               key={card.title}
               href={card.href}

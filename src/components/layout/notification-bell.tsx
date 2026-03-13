@@ -7,7 +7,17 @@ type NotificationSeverity = "info" | "warning" | "danger";
 
 type NotificationItem = {
   id: string;
-  type: "document" | "drawing_review" | "issue" | "weather" | "sync" | "qa_capa" | "qa_audit" | "qa_kpi";
+  type:
+    | "document"
+    | "drawing_review"
+    | "issue"
+    | "weather"
+    | "sync"
+    | "qa_capa"
+    | "qa_audit"
+    | "qa_kpi"
+    | "qc_ncr"
+    | "qc_handover";
   severity: NotificationSeverity;
   title: string;
   message: string;
@@ -23,6 +33,8 @@ type NotificationResponse = {
       pendingDocs?: number;
       pendingDrawingReviews?: number;
       openIssues?: number;
+      overdueQcNcrCount?: number;
+      pendingQcHandovers?: number;
       overdueCapaCount?: number;
       pendingQaAudits?: number;
       qaKpiAlerts?: number;

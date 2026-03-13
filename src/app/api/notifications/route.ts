@@ -10,12 +10,23 @@ import DrawingReview from "@/models/DrawingReview";
 import Issue from "@/models/Issue";
 import IntegrationSyncLog from "@/models/IntegrationSyncLog";
 import { getQaOpsSnapshot } from "@/lib/qa-ops-summary";
+import { getQcOpsSnapshot } from "@/lib/qc-ops-summary";
 
 type NotificationSeverity = "info" | "warning" | "danger";
 
 type NotificationItem = {
   id: string;
-  type: "document" | "drawing_review" | "issue" | "weather" | "sync" | "qa_capa" | "qa_audit" | "qa_kpi";
+  type:
+    | "document"
+    | "drawing_review"
+    | "issue"
+    | "weather"
+    | "sync"
+    | "qa_capa"
+    | "qa_audit"
+    | "qa_kpi"
+    | "qc_ncr"
+    | "qc_handover";
   severity: NotificationSeverity;
   title: string;
   message: string;
@@ -85,7 +96,16 @@ export async function GET() {
       .select({ siteName: 1, address: 1, latitude: 1, longitude: 1 })
       .lean();
 
-    const [pendingDocs, pendingDocList, pendingReviewCount, pendingReviewList, openIssueCount, openIssueList, failedSyncCount, failedSyncList] = await Promise.all([
+    const [
+      pendingDocs,
+      pendingDocList,
+      pendingReviewCount,
+      pendingReviewList,
+      openIssueCount,
+      openIssueList,
+      failedSyncCount,
+      failedSyncList,
+    ] = await Promise.all([
       countPendingDocuments(siteId),
       listPendingDocuments(siteId, { limit: 3 }),
       DrawingReview.countDocuments({ siteId, decisionStatus: "pending" }),
@@ -108,11 +128,18 @@ export async function GET() {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    const qaSummary = await getQaOpsSnapshot(siteId, {
-      limit: 3,
-      referenceDate: startOfToday,
-      kpiYear: startOfToday.getFullYear(),
-    });
+    const [qaSummary, qcSummary] = await Promise.all([
+      getQaOpsSnapshot(siteId, {
+        limit: 3,
+        referenceDate: startOfToday,
+        kpiYear: startOfToday.getFullYear(),
+      }),
+      getQcOpsSnapshot(siteId, {
+        limit: 3,
+        referenceDate: startOfToday,
+        monthsBack: 6,
+      }),
+    ]);
 
     let weatherWarningCount = 0;
     let weatherMessage = "";
@@ -229,6 +256,32 @@ export async function GET() {
     );
 
     items.push(
+      ...qcSummary.overdueNcrs.map((item) => ({
+        id: `qc-ncr-${String(item._id)}`,
+        type: "qc_ncr" as const,
+        severity: (String(item.severity ?? "") === "critical" || String(item.severity ?? "") === "high"
+          ? "danger"
+          : "warning") as NotificationSeverity,
+        title: `지연 NCR ${String(item.ncrNo ?? "")}`,
+        message: `${String(item.title ?? "NCR 제목 없음")} · 담당 ${String(item.assigneeName ?? "미지정")}`,
+        href: "/qc/nonconformance?overdueOnly=true",
+        timestamp: toIsoString(readDateField(item, "dueDate")),
+      })),
+    );
+
+    items.push(
+      ...qcSummary.pendingHandovers.map((item) => ({
+        id: `qc-handover-${String(item._id)}`,
+        type: "qc_handover" as const,
+        severity: Number(item.openFindingCount ?? 0) > 0 ? ("warning" as const) : ("info" as const),
+        title: `인수·준공 미조치 ${String(item.inspectionNo ?? "")}`,
+        message: `${String(item.inspectionTitle ?? "검사 제목 없음")} · 미조치 ${Number(item.openFindingCount ?? 0)}건`,
+        href: "/qc/handover-inspection?unresolvedOnly=true",
+        timestamp: toIsoString(readDateField(item, "plannedInspectionDate")),
+      })),
+    );
+
+    items.push(
       ...failedSyncList.map((syncLog) => ({
         id: `sync-${String(syncLog._id)}`,
         type: "sync" as const,
@@ -247,6 +300,8 @@ export async function GET() {
         pendingDocs +
         pendingReviewCount +
         openIssueCount +
+        qcSummary.overdueNcrCount +
+        qcSummary.pendingHandoverCount +
         qaSummary.overdueCapaCount +
         qaSummary.pendingAuditCount +
         qaSummary.kpiAlertCount +
@@ -255,6 +310,8 @@ export async function GET() {
       pendingDocs,
       pendingDrawingReviews: pendingReviewCount,
       openIssues: openIssueCount,
+      overdueQcNcrCount: qcSummary.overdueNcrCount,
+      pendingQcHandovers: qcSummary.pendingHandoverCount,
       overdueCapaCount: qaSummary.overdueCapaCount,
       pendingQaAudits: qaSummary.pendingAuditCount,
       qaKpiAlerts: qaSummary.kpiAlertCount,
