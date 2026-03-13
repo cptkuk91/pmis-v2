@@ -35,6 +35,7 @@ loadEnvFile(".env");
 loadEnvFile(".env.local");
 
 const DRY_RUN = process.argv.includes("--dry-run");
+const SITE_CODE_FILTERS = getListOption("--site-codes");
 
 const DEFAULT_INSPECTOR_NAME = "QC 관리자";
 const DEFAULT_REQUESTER_NAME = "공무 대리";
@@ -92,6 +93,19 @@ function formatDatePart(date: Date) {
   return `${year}${month}${day}`;
 }
 
+function getListOption(flag: string) {
+  const matched = process.argv.find((argument) => argument.startsWith(`${flag}=`));
+  if (!matched) {
+    return [];
+  }
+
+  return matched
+    .slice(flag.length + 1)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function getSiteToken(siteCode: unknown, siteId: string) {
   const normalized = String(siteCode ?? "")
     .trim()
@@ -100,7 +114,7 @@ function getSiteToken(siteCode: unknown, siteId: string) {
   return normalized || siteId.slice(-6).toUpperCase();
 }
 
-function normalizeComparable(value: unknown): unknown {
+function normalizeComparable(value: unknown, seen = new WeakSet<object>()): unknown {
   if (value instanceof Date) {
     return value.toISOString();
   }
@@ -110,14 +124,33 @@ function normalizeComparable(value: unknown): unknown {
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => normalizeComparable(item));
+    return value.map((item) => normalizeComparable(item, seen));
   }
 
   if (value && typeof value === "object") {
-    return Object.keys(value as Record<string, unknown>)
+    if (seen.has(value)) {
+      return "[Circular]";
+    }
+
+    seen.add(value);
+
+    const plainValue =
+      typeof (value as { toObject?: () => unknown }).toObject === "function"
+        ? (value as { toObject: () => unknown }).toObject()
+        : value;
+
+    if (plainValue && typeof plainValue === "object" && plainValue !== value) {
+      return normalizeComparable(plainValue, seen);
+    }
+
+    return Object.keys(plainValue as Record<string, unknown>)
       .sort()
       .reduce<Record<string, unknown>>((accumulator, key) => {
-        accumulator[key] = normalizeComparable((value as Record<string, unknown>)[key]);
+        if (key.startsWith("$") || key.startsWith("_")) {
+          return accumulator;
+        }
+
+        accumulator[key] = normalizeComparable((plainValue as Record<string, unknown>)[key], seen);
         return accumulator;
       }, {});
   }
@@ -220,7 +253,13 @@ async function main() {
 
   await connectDB();
 
-  const sites = await Site.find({ isDeleted: false })
+  const siteFilter: Record<string, unknown> = { isDeleted: false };
+  if (SITE_CODE_FILTERS.length > 0) {
+    siteFilter.siteCode = { $in: SITE_CODE_FILTERS };
+    console.log(`[filter] siteCodes=${SITE_CODE_FILTERS.join(", ")}`);
+  }
+
+  const sites = await Site.find(siteFilter)
     .select({ siteCode: 1, siteName: 1 })
     .sort({ createdAt: 1 });
 

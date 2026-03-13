@@ -35,6 +35,8 @@ function loadEnvFile(filename: string) {
 loadEnvFile(".env");
 loadEnvFile(".env.local");
 
+const SITE_CODE_FILTERS = getListOption("--site-codes");
+
 const JOB_TYPES = [
   { itemCode: "JOB001", itemName: "형틀목공", description: "거푸집 및 형틀 작업" },
   { itemCode: "JOB002", itemName: "철근공", description: "철근 가공 및 조립 작업" },
@@ -80,6 +82,19 @@ const GROUPS: readonly SeedGroup[] = [
   },
 ] as const;
 
+function getListOption(flag: string) {
+  const matched = process.argv.find((argument) => argument.startsWith(`${flag}=`));
+  if (!matched) {
+    return [];
+  }
+
+  return matched
+    .slice(flag.length + 1)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 async function main() {
   const [{ connectDB }, { default: Site }, { default: CodeGroup }, { default: CodeItem }] =
     await Promise.all([
@@ -91,7 +106,13 @@ async function main() {
 
   await connectDB();
 
-  const sites = await Site.find({ isDeleted: false })
+  const siteFilter: Record<string, unknown> = { isDeleted: false };
+  if (SITE_CODE_FILTERS.length > 0) {
+    siteFilter.siteCode = { $in: SITE_CODE_FILTERS };
+    console.log(`[filter] siteCodes=${SITE_CODE_FILTERS.join(", ")}`);
+  }
+
+  const sites = await Site.find(siteFilter)
     .select({ siteCode: 1, siteName: 1 })
     .sort({ createdAt: 1 });
 

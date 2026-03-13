@@ -35,6 +35,7 @@ loadEnvFile(".env");
 loadEnvFile(".env.local");
 
 const DRY_RUN = process.argv.includes("--dry-run");
+const SITE_CODE_FILTERS = getListOption("--site-codes");
 const DEFAULT_MEMBER_ID = "seed-qa-manager";
 const DEFAULT_MEMBER_NAME = "QA 관리자";
 
@@ -46,6 +47,19 @@ type SeedCounters = {
 
 function formatDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+
+function getListOption(flag: string) {
+  const matched = process.argv.find((argument) => argument.startsWith(`${flag}=`));
+  if (!matched) {
+    return [];
+  }
+
+  return matched
+    .slice(flag.length + 1)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 async function main() {
@@ -81,7 +95,13 @@ async function main() {
 
   await connectDB();
 
-  const sites = await Site.find({ isDeleted: false })
+  const siteFilter: Record<string, unknown> = { isDeleted: false };
+  if (SITE_CODE_FILTERS.length > 0) {
+    siteFilter.siteCode = { $in: SITE_CODE_FILTERS };
+    console.log(`[filter] siteCodes=${SITE_CODE_FILTERS.join(", ")}`);
+  }
+
+  const sites = await Site.find(siteFilter)
     .select({ siteCode: 1, siteName: 1 })
     .sort({ createdAt: 1 });
 
@@ -109,7 +129,7 @@ async function main() {
       const payload = {
         siteId,
         year,
-        status: "approved",
+        status: "active",
         policyTitle: samplePolicyTitle,
         policyStatement: `${site.siteName} 품질 사고 제로와 재작업 최소화를 위한 현장 품질 기준 준수`,
         effectiveDate: new Date(`${year}-01-01`),
