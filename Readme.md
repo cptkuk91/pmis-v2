@@ -3,6 +3,8 @@
 건설 현장 운영을 위한 `Next.js + MongoDB` 기반 PMIS(Project Management Information System)입니다.  
 현재 저장소는 단순 프로토타입이 아니라, 대시보드·현장정보·공정·자원조달·QA·QC·안전·설계문서·시스템 관리까지 실제 업무 흐름을 갖춘 단일 웹 애플리케이션을 목표로 유지되고 있습니다.
 
+이 프로젝트는 `Codex`, `Claude`, `Openclaw`를 활용해 개발되었습니다.
+
 이 문서는 `main` 기준 현재 코드 상태를 빠르게 파악하기 위한 요약 가이드입니다.  
 세부 운영 절차와 사용자 흐름은 [`docs/operations-manual.md`](./docs/operations-manual.md)를 기준 문서로 봐야 합니다.
 
