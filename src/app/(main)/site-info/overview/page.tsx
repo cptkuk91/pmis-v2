@@ -78,7 +78,7 @@ export default function OverviewPage() {
   const canEditSite = useMemo(() => hasMinRole(user.role, "site_admin"), [user.role]);
   const canDeleteSite = useMemo(() => hasMinRole(user.role, "super_admin"), [user.role]);
   const [site, setSite] = useState<SiteData | null>(null);
-  const [loading, setLoading] = useState<boolean>(() => Boolean(getSiteId()));
+  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<SiteOverviewForm>({
     siteName: "",
@@ -99,17 +99,33 @@ export default function OverviewPage() {
   const [histForm, setHistForm] = useState({ eventDate: "", title: "", description: "", category: "" });
 
   useEffect(() => {
+    let alive = true;
     const siteId = getSiteId();
-    if (!siteId) return;
+
+    if (!siteId) {
+      setLoading(false);
+      return () => {
+        alive = false;
+      };
+    }
+
     fetch(`/api/sites/${siteId}`)
       .then((r) => r.json())
       .then((res) => {
-        if (res.ok) {
+        if (alive && res.ok) {
           setSite(res.data);
           setForm(toSiteForm(res.data));
         }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (alive) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const fetchHistory = useCallback((p: number) => {
