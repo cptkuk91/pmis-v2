@@ -25,11 +25,11 @@
 
 - 대시보드: 결재 대기 문서, 도면 검토 대기, 금일 회의, 오픈 이슈, 공지, QA/QC 운영 경고
 - 현장 정보: 개요, 관계자, 기술 문서, 방문자
-- 공정 관리: 리포트, 공정표, 진도 비교, 일정 캘린더, 날씨
-- 자원·조달: 자재/장비 계획대비, 공급원 승인, 출역, 하도급, 손익
+- 공정 관리: 리포트, 공정표, 진도 비교, 일정 캘린더, 날씨, 사진, 안전일지 연계
+- 자원·조달: 자재/장비 계획대비, 공급원 승인, 일일 근태/통계, 하도급, 손익
 - QA: 품질 정책·목표, QAP, 절차서, 내부 심사, CAPA, 협력사 품질보증, KPI
 - QC: ITP, 자재 검사, 공정 검사, 시험 성적서, NCR, 인수·준공 검사, 품질 대시보드
-- 안전: 정책, 규정, 법령, 교육, 점검, 운영 관리, 무재해/마일리지, 시설
+- 안전: 정책, 규정, 법령, 위험성 평가/실행계획, 교육, 보호구, 점검, 운영 관리, 무재해/마일리지, 시설
 - 설계·문서: 도면, 도면검토, 설계변경, 설계자료 트리, 문서 작성/대장/검색/분류
 - 시스템 관리: 회의, 이슈, 자료실, 외부사이트, 코드관리, 현장/권한 매핑, Support
 
@@ -135,7 +135,8 @@ PMIS_REQUIRE_LOGIN=false
 
 참고:
 
-- `scripts/` 아래에는 유지보수용 일회성 스크립트가 일부 남아 있을 수 있지만, 현재 `package.json`에는 seed 실행 스크립트를 노출하지 않습니다.
+- `scripts/` 아래에는 유지보수용 일회성 seed/backfill 스크립트가 일부 남아 있지만, 현재 `package.json`에는 seed 실행 스크립트를 노출하지 않습니다.
+- 현재 워킹트리에는 `phase6:*` 스크립트가 참조하는 `scripts/phase6/...` 파일이 없습니다. 해당 스크립트는 `package.json`에 남아 있는 점검 엔트리로만 확인됩니다.
 
 ## 7. 폴더 구조
 
@@ -147,7 +148,9 @@ src/
     api/                     # Route Handlers
   components/
     layout/                  # 상단/사이드/알림/위젯
+    features/                # 업무별 복합 뷰/관리 패널
     qa/                      # QA 공통 UI
+    qc/                      # QC 공통 UI
     ui/                      # Modal, Table, Banner 등 공통 컴포넌트
   hooks/                     # 사용자/현장/멤버 조회 훅
   lib/                       # auth, db, permissions, payload, summary, helpers
@@ -161,31 +164,47 @@ docs/
 
 scripts/
   backfill-site-coordinates.ts
+  seed-project-demo.ts
   seed-qa-module.ts
   seed-qc-module.ts
   seed-workforce-codes.ts
 ```
 
-## 8. 대표 메뉴와 경로
+## 8. 메뉴 구성과 대표 경로
 
-상세 라우트 전체를 README에 고정하지 않고, 운영상 자주 보는 대표 경로만 정리합니다.
+상단 전역 메뉴는 `src/components/layout/top-nav.tsx` 기준으로 구성됩니다.
+
+- 대시보드: `/dashboard`
+- 현장 정보: `/site-info`
+- 공정 관리: `/progress`
+- 자원·조달: `/resource-procurement`
+- QA: `/qa`
+- QC: `/qc`
+- 안전: `/quality-safety`
+- 설계·문서: `/design-docs`
+- 시스템 관리: `/system-admin`
+
+사이드 Quick Links는 `공지사항`, `금일회의`, `미결문서`, `UI 테스트 페이지`와 외부 링크 영역의 `Open-Meteo 날씨`, `도면 열람 시스템`, `Support`를 제공합니다.
+
+주요 하위 메뉴와 대표 경로는 다음과 같습니다.
 
 | 영역 | 대표 경로 |
 |---|---|
-| 대시보드 | `/dashboard`, `/dashboard/notices`, `/dashboard/pending-docs`, `/dashboard/meetings` |
+| 대시보드 | `/dashboard`, `/dashboard/notices`, `/dashboard/pending-docs`, `/dashboard/meetings`, `/dashboard/search`, `/dashboard/ui-lab` |
 | 현장 정보 | `/site-info/overview`, `/site-info/people`, `/site-info/technical-docs`, `/site-info/visitors` |
-| 공정 관리 | `/progress`, `/progress/reports`, `/progress/master-schedule`, `/progress/calendar`, `/progress/weather` |
-| 자원·조달 | `/resource-procurement/materials/plan-actual`, `/resource-procurement/equipment/plan-actual`, `/resource-procurement/supplier-approvals`, `/resource-procurement/workforce/daily` |
+| 공정 관리 | `/progress`, `/progress/reports`, `/progress/master-schedule`, `/progress/comparison`, `/progress/calendar`, `/progress/weather`, `/progress/photos`, `/progress/daily-safety-log` |
+| 자원·조달 | `/resource-procurement/materials/plan-actual`, `/resource-procurement/equipment/plan-actual`, `/resource-procurement/supplier-approvals`, `/resource-procurement/workforce/daily`, `/resource-procurement/workforce/statistics`, `/resource-procurement/subcontract`, `/resource-procurement/profit-loss` |
 | QA | `/qa/policy-goals`, `/qa/assurance-plan`, `/qa/procedures`, `/qa/audits`, `/qa/capa`, `/qa/partner-assurance`, `/qa/kpi` |
 | QC | `/qc/itp`, `/qc/material-inspection`, `/qc/process-inspection`, `/qc/test-reports`, `/qc/nonconformance`, `/qc/handover-inspection`, `/qc/quality-dashboard` |
-| 안전 | `/quality-safety/safety/policies`, `/quality-safety/safety/management/daily-log`, `/quality-safety/safety/education/training` |
-| 설계·문서 | `/design-docs/design/reviews`, `/design-docs/design/drawings`, `/design-docs/design/changes`, `/design-docs/design/assets`, `/design-docs/documents/wizard/[step]` |
-| 시스템 관리 | `/system-admin/common/meetings`, `/system-admin/common/issues`, `/system-admin/common/library`, `/system-admin/sites`, `/system-admin/site-memberships`, `/system-admin/support` |
+| 안전 | `/quality-safety/safety/policies`, `/quality-safety/safety/regulations`, `/quality-safety/safety/laws`, `/quality-safety/safety/standards/hazard`, `/quality-safety/safety/standards/plan`, `/quality-safety/safety/standards/partner`, `/quality-safety/safety/rewards/checklist`, `/quality-safety/safety/management/daily-log`, `/quality-safety/safety/management/setup`, `/quality-safety/safety/management/ongoing`, `/quality-safety/safety/management/completion`, `/quality-safety/safety/education/training`, `/quality-safety/safety/education/new-worker`, `/quality-safety/safety/education/equipment`, `/quality-safety/safety/education/health`, `/quality-safety/safety/education/accident-free`, `/quality-safety/safety/rewards/mileage`, `/quality-safety/safety/facilities` |
+| 설계·문서 | `/design-docs/design/reviews`, `/design-docs/design/drawings`, `/design-docs/design/drawing-viewer`, `/design-docs/design/changes`, `/design-docs/design/assets`, `/design-docs/documents/wizard/[step]`, `/design-docs/documents/ledgers/instruction`, `/design-docs/documents/ledgers/correspondence`, `/design-docs/documents/search`, `/design-docs/documents/categories`, `/design-docs/documents/system` |
+| 시스템 관리 | `/system-admin/common/meetings`, `/system-admin/common/issues`, `/system-admin/common/library`, `/system-admin/common/external-sites`, `/system-admin/codes/partners`, `/system-admin/codes/materials`, `/system-admin/codes/material-specifications`, `/system-admin/codes/equipment`, `/system-admin/codes/equipment-specifications`, `/system-admin/codes/job-types`, `/system-admin/codes/work-types`, `/system-admin/sites`, `/system-admin/site-memberships`, `/system-admin/support`, `/system-admin/support/faq`, `/system-admin/support/tickets`, `/system-admin/integrations/drawing-viewer` |
 
 ## 9. 코드베이스 스냅샷
 
-2026-03-13 기준 소스 스캔 수치입니다.
+2026-04-23 기준 소스 스캔 수치입니다.
 
+- `src/app/**/page.tsx`: `103`개
 - `src/app/(main)/**/page.tsx`: `100`개
 - `src/app/api/**/route.ts`: `147`개
 - `src/models/*.ts`: `69`개
